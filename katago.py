@@ -1,3 +1,6 @@
+# © 2021 Joseph Craig <the.sadakatsu@gmail.com>
+# This code is not released under a standard OSS license.  Please read README.md.
+
 import io
 import json
 import os

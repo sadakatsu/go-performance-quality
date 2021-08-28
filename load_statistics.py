@@ -1,3 +1,6 @@
+# © 2021 Joseph Craig <the.sadakatsu@gmail.com>
+# This code is not released under a standard OSS license.  Please read README.md.
+
 import numpy as np
 import pandas as pd
 import re

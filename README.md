@@ -1,5 +1,8 @@
 # go-performance-quality
-### WARNING: This is _not_ distributed under a standard open-source software license. 
+### WARNING: This is _not_ distributed under a standard open-source software license.
+
+> © 2021 Joseph Craig <the.sadakatsu@gmail.com>
+
 This is an experimental project that I intend to turn into a full product.  I am releasing this code so that people can
 use this tool for personal use.  If you wish to use this software, you may use the code to analyze Go games, and may
 make minor modifications to this code to improve your personal edification.
