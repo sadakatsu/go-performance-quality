@@ -183,3 +183,15 @@ the game.  It has the following columns:
 - `After`: the expected score after the player made this move, reported from `Player`'s perspective
 - `Delta`: `Before` - `After`, the expected result's change caused by this move
 - `Mistake`: `round(Delta)`, the Mistake value for this Move; it is clamped so it is never lower than zero
+
+#### The plot
+The program generates a plot to show the player's mistake distributions using Gaussian kernel density estimation (KDE).
+This provides a much better understanding of how each player performed than the statistical moments of `Loss Mean` and
+`Loss Std. Dev.` on their own:
+
+![Cho Hunhyun 9p vs. Nie Weiping 9p](plots/2021-09-12__19x19-7.5-Nie%20Weiping-9p-vs-Cho%20Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun.png)
+
+The ideal is to have a high peak reaching `y=1.0` around `x=0` to indicate an absolutely perfect game.  The more and
+larger mistakes players make, the more humps will appear as `x` increases.  You can see what proportion of a players
+moves each player made that cost them `x` points this way, and get an idea as to why the program generated the Quality
+scores that it did.
