@@ -1,4 +1,6 @@
 analyses_directory: analyses
+plots_directory: plots
+tables_directory: tables
 transformation_parameters: configuration/hyperparameters.npy
 
 katago:

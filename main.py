@@ -14,18 +14,31 @@ from glob import glob
 from katago import KataGo, LineType
 from load_statistics import load_performances
 from parse import parse_sgf_contents, transform_sgf_to_command
+from plot import plot_distributions
 
 
 def run(sgf_filename):
     configuration = load_configuration()
     parameters, transformation = load_parameters(configuration['transformation_parameters'])
 
-    analysis_filename = get_or_create_analysis_file(sgf_filename, configuration['analyses_directory'], configuration['katago'])
+    game = load_sgf(sgf_filename)
+    root = game[0]
+    black_name = root['PB']
+    white_name = root['PW']
+
+    analysis_filename = get_or_create_analysis_file(
+        sgf_filename,
+        game,
+        configuration['analyses_directory'],
+        configuration['katago']
+    )
     original_performances = load_performances(analysis_filename)
     performance_matrix = transform_to_performance_matrix(original_performances)
     scaled = scale(performance_matrix, parameters)
     transformed = scaled @ transformation
     summary = summarize(analysis_filename)
+
+    plot_distributions(configuration['plots_directory'], analysis_filename, black_name, white_name)
 
     print('\nPlayer, Moves, Mistakes, p(Mistake), Loss Total, Loss Mean, Loss Std. Dev., Quality')
     for player in ['B', 'W']:
@@ -66,13 +79,13 @@ def load_parameters(filename):
         return configuration['parameters'].item(), configuration['transformation']
 
 
-def get_or_create_analysis_file(sgf_filename, analyses_directory, katago_configuration):
+def get_or_create_analysis_file(sgf_filename, game, analyses_directory, katago_configuration):
     base_name = get_base_filename(sgf_filename)
     analysis_filename = find_existing_analysis(base_name, analyses_directory)
     if analysis_filename:
         print(f'Found {analysis_filename} .')
     else:
-        analysis_filename = perform_analysis(sgf_filename, base_name, analyses_directory, katago_configuration)
+        analysis_filename = perform_analysis(sgf_filename, game, base_name, analyses_directory, katago_configuration)
     return analysis_filename
 
 
@@ -92,10 +105,9 @@ def find_existing_analysis(base_name, analyses_directory):
     return haystack[0] if haystack else None
 
 
-def perform_analysis(sgf_filename, base_name, analyses_directory, katago_configuration):
-    game = load_sgf(sgf_filename)
+def perform_analysis(sgf_filename, game, base_name, analyses_directory, katago_configuration):
     analysis_date = get_analysis_date(sgf_filename, game)
-    analysis_filename = build_analysis_filename(analyses_directory, base_name, analysis_date)
+    analysis_filename = build_analysis_filename(analyses_directory, game, base_name, analysis_date)
     command, initial_player, positions = transform_sgf_to_command(game, convert=False)
 
     print('Starting KataGo...')
@@ -156,8 +168,31 @@ def get_file_creation_date_string(sgf):
     return time.strftime('%Y-%m-%d', local_time)
 
 
-def build_analysis_filename(analyses_directory, base_name, analysis_date):
-    return f'{analyses_directory}/{analysis_date}_{base_name}.csv'
+def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
+    root = game[0]
+    black_name = root['PB']
+    black_rank = ('' if 'BR' not in root else root['BR']).replace(r'[-?]', '')
+    komi = 0 if 'KM' not in root else root['KM']
+    handicap = '' if 'HA' not in root else root['HA']
+    size = root['SZ']
+    white_name = root['PW']
+    white_rank = ('' if 'WR' not in root else root['WR']).replace(r'[-?]', '')
+
+    path = f'{analysis_date}__{size}x{size}-'
+    if handicap:
+        path += f'HA{handicap}-'
+    path += f'{komi}-{white_name}-'
+    if white_rank:
+        path += f'{white_rank}-'
+    path += f'vs-{black_name}'
+    if black_rank:
+        path += f'-{black_rank}'
+    path += f'__{base_name}.csv'
+    path = path.replace(r'\W+', '_')
+
+    print('DEBUG: path is', path)
+
+    return f'{analyses_directory}/{path}'
 
 
 def compose_analysis(katago, first_player, move_count, start):

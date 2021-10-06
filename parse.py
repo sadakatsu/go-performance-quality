@@ -29,7 +29,7 @@ def build_terminal(name, pattern):
         matcher = regex.match(text, index)
         if matcher:
             if debug:
-                print(' ' * depth, matcher)
+                print(' ' * depth, matcher.group())
             return matcher.group(0), matcher.end()
         else:
             raise Exception(f'Could not parse beyond {index}')

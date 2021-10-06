@@ -40,7 +40,7 @@ def load_performances(analysis_filename, use_rounded=True, minimum_moves=21):
 
 
 def load(analysis_filename):
-    matcher = re.search(r'^(?:[^/\\]*[/\\])*(?P<date>\d{4,}-\d{2}-\d{2})_(?P<name>[^_]+).csv$', analysis_filename)
+    matcher = re.search(r'^(?:[^/\\]*[/\\])*(?P<date>\d{4,}-\d{2}-\d{2})__.*__(?P<name>[^\.]+).csv$', analysis_filename)
     if not matcher:
         return None
     return (
