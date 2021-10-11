@@ -8,15 +8,17 @@ import re
 import scipy.stats
 
 from fontTools.ttLib import TTFont
-from load_statistics import load_performances
+from matplotlib.ticker import MultipleLocator
+
+from load_statistics import get_expected_result, load_performances, get_worst_moves
 from matplotlib import rcParams
 
 
 def plot_distributions(plots_directory: str, analysis_filename: str, black_name: str, white_name: str):
+    # TODO: Refactor this code into two branches: one for KDE, one for expected result.
     _set_matplotlib_fonts(analysis_filename)
 
     filename_core = _get_filename_core(analysis_filename)
-    title = filename_core.replace('__', '\n')
 
     performances = load_performances(analysis_filename, use_rounded=False)
     minimum = _get_safe_minimum(performances)
@@ -28,7 +30,9 @@ def plot_distributions(plots_directory: str, analysis_filename: str, black_name:
     black_xs, black_ys = _generate_density_estimation(black_performance, minimum, maximum)
     white_xs, white_ys = _generate_density_estimation(white_performance, minimum, maximum)
 
-    plt.title(title)
+    plt.close('all')
+    plt.figure(1)
+    plt.title('Estimated Mistake Distribution')
     plt.xlabel('Mistake Cost in Points')
     plt.ylabel('Proportion of Moves')
     plt.xlim(minimum, maximum)
@@ -36,7 +40,67 @@ def plot_distributions(plots_directory: str, analysis_filename: str, black_name:
     plt.plot(black_xs, black_ys, label=f'Black ({black_name})')
     plt.plot(white_xs, white_ys, label=f'White ({white_name})')
     plt.legend(loc='upper right')
-    plt.savefig(f'{plots_directory}/{filename_core}.png', format='png')
+    plt.tight_layout()
+    plt.savefig(f'{plots_directory}/{filename_core}__kde.png', format='png')
+
+    expected_result = get_expected_result(analysis_filename)
+    move_count = len(expected_result)
+    move_indices = [i + 1 for i in range(move_count)]
+    mistake_indices, worst_mistakes = get_worst_moves(analysis_filename)
+    mistake_ceiling = int(np.ceil(np.max(np.abs(worst_mistakes)) + 1))
+
+    plt.close('all')
+    figure = plt.figure(2)
+    figure.suptitle('Expected Result by Move and Worst Mistakes')
+
+    expected_result_plot = plt.subplot2grid((5, 1), (1, 0), rowspan=3)
+    expected_result_plot.grid()
+    expected_result_plot.set_ylabel('Expected Result')
+    expected_result_plot.plot(move_indices, expected_result, linewidth=0.5)
+    expected_result_plot.set_xlim(-1, move_count + 1)
+
+    black_worst_plot = plt.subplot2grid((5, 1), (0, 0))
+    black_worst_plot.grid(zorder=0)
+    black_worst_plot.xaxis.set_ticklabels([])
+    black_worst_plot.yaxis.set_major_locator(MultipleLocator(5))
+    black_worst_plot.yaxis.set_major_formatter(lambda x, _: int(abs(x)))
+    black_worst_plot.set_xlim(-1, move_count + 1)
+    black_worst_plot.set_ylim(-mistake_ceiling, 0)
+    black_worst_plot.set_ylabel('Black Worst')
+    black_worst_plot.bar(mistake_indices, -worst_mistakes, color='red', width=1, zorder=2)
+
+    white_worst_plot = plt.subplot2grid((5, 1), (4, 0))
+    white_worst_plot.grid(zorder=0)
+    white_worst_plot.xaxis.set_ticklabels([])
+    white_worst_plot.yaxis.set_major_locator(MultipleLocator(5))
+    white_worst_plot.set_ylim(0, mistake_ceiling)
+    white_worst_plot.set_xlim(-1, move_count + 1)
+    white_worst_plot.set_ylabel('White Worst')
+    white_worst_plot.bar(mistake_indices, -worst_mistakes, color='red', width=1, zorder=2)
+
+    for index, magnitude in zip(mistake_indices, worst_mistakes):
+        label = index % 100 if index // 100 != index / 100 else index
+        if magnitude > 0:
+            black_worst_plot.annotate(
+                label,
+                (index, -magnitude),
+                fontsize=6,
+                ha='center',
+                textcoords='offset points',
+                xytext=(0, -7)
+            )
+        else:
+            white_worst_plot.annotate(
+                label,
+                (index, -magnitude),
+                fontsize=6,
+                ha='center',
+                textcoords='offset points',
+                xytext=(0, 1)
+            )
+
+    plt.tight_layout()
+    plt.savefig(f'{plots_directory}/{filename_core}__er.png', format='png')
 
 
 def _set_matplotlib_fonts(analysis_filename: str):

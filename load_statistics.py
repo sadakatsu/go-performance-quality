@@ -1,5 +1,6 @@
 # © 2021 Joseph Craig <the.sadakatsu@gmail.com>
 # This code is not released under a standard OSS license.  Please read README.md.
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -58,3 +59,27 @@ def get_mistakes(dataframe, player, use_rounded=True):
         result = player_slice['Before'].to_numpy() - player_slice['After'].to_numpy()
 
     return result
+
+
+def get_expected_result(analysis_filename: str) -> List[float]:
+    _1, _2, dataframe = load(analysis_filename)
+    subset = zip(dataframe['Player'], dataframe['After'])
+    return [np.round(x if p == 'B' else -x, 1) for p, x in subset]
+
+
+def get_worst_moves(analysis_filename: str) -> Tuple[List[int], np.array]:
+    _1, _2, dataframe = load(analysis_filename)
+
+    black_mistakes = np.array([x if p == 'B' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Delta'])])
+    worst_black_mistake_indices = np.sort((-black_mistakes).argsort()[:10])
+    worst_black_mistakes = np.array([black_mistakes[i] for i in worst_black_mistake_indices])
+
+    white_mistakes = np.array([-x if p == 'W' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Delta'])])
+    worst_white_mistake_indices = np.sort(white_mistakes.argsort()[:10])
+    worst_white_mistakes = np.array([white_mistakes[i] for i in worst_white_mistake_indices])
+
+    # indices are one off move numbers
+    indices = np.concatenate((worst_black_mistake_indices, worst_white_mistake_indices)) + 1
+    worst = np.concatenate((worst_black_mistakes, worst_white_mistakes))
+
+    return indices, worst
