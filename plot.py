@@ -10,6 +10,7 @@ import scipy.stats
 from fontTools.ttLib import TTFont
 from matplotlib.ticker import MultipleLocator
 
+from common import get_filename_core
 from load_statistics import get_expected_result, load_performances, get_worst_moves
 from matplotlib import rcParams
 
@@ -18,7 +19,7 @@ def plot_distributions(plots_directory: str, analysis_filename: str, black_name:
     # TODO: Refactor this code into two branches: one for KDE, one for expected result.
     _set_matplotlib_fonts(analysis_filename)
 
-    filename_core = _get_filename_core(analysis_filename)
+    filename_core = get_filename_core(analysis_filename)
 
     performances = load_performances(analysis_filename, use_rounded=False)
     minimum = _get_safe_minimum(performances)
@@ -136,10 +137,6 @@ def _char_in_font(character, font):
             if ord(character) in cmap.cmap:
                 return True
     return False
-
-
-def _get_filename_core(analysis_filename: str):
-    return re.match(r'^(?:[^\\/]*[\\/])*(.*)\.csv$', analysis_filename).group(1)
 
 
 def _get_performance(performances, color: str):

@@ -15,6 +15,7 @@ from katago import KataGo, LineType
 from load_statistics import load_performances
 from parse import parse_sgf_contents, transform_sgf_to_command
 from plot import plot_distributions
+from render import render_table
 
 
 def run(sgf_filename):
@@ -25,6 +26,13 @@ def run(sgf_filename):
     root = game[0]
     black_name = root['PB']
     white_name = root['PW']
+    result = root['RE']
+    if result.startswith('B+'):
+        winner = 'B'
+    elif result.startswith('W+'):
+        winner = 'W'
+    else:
+        winner = None
 
     analysis_filename = get_or_create_analysis_file(
         sgf_filename,
@@ -38,7 +46,21 @@ def run(sgf_filename):
     transformed = scaled @ transformation
     summary = summarize(analysis_filename)
 
+    black_quality = f'{transformed[0, 0]:+0.3f}'
+    white_quality = f'{transformed[1, 0]:+0.3f}'
+
     plot_distributions(configuration['plots_directory'], analysis_filename, black_name, white_name)
+    render_table(
+        configuration['renders_directory'],
+        analysis_filename,
+        black_name,
+        white_name,
+        winner,
+        black_quality,
+        white_quality,
+        summary['B'],
+        summary['W']
+    )
 
     print('\nPlayer, Moves, Mistakes, p(Mistake), Loss Total, Loss Mean, Loss Std. Dev., Quality')
     for player in ['B', 'W']:

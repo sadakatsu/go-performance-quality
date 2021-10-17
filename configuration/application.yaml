@@ -1,5 +1,6 @@
 analyses_directory: analyses
 plots_directory: plots
+renders_directory: renders
 tables_directory: tables
 transformation_parameters: configuration/hyperparameters.npy
 
