@@ -4,7 +4,7 @@ Analyze Go games to generate metrics representing how well each player played.
 
 | Performance Table | Expected Result Graph | Estimated Mistake Distribution |
 | --- | --- | --- |
-| <img src="renders/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun.png" height="500" /> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__er.png" height="500"/> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__kde.png" height="500"/> |
+| <img src="renders/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun.png" height="500" /> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__er.png" /> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__kde.png" /> |
 
 ### WARNING: This is _not_ distributed under a standard open-source software license.
 
