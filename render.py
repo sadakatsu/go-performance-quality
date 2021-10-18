@@ -1,40 +1,9 @@
-import asyncio
-
 from mako.template import Template
-from PIL import Image
-from pyppeteer import launch
 
-from common import get_filename_core
+from common import get_filename_core, render_html
 
 
 def render_table(
-    renders_directory,
-    analysis_filename,
-    black_name,
-    white_name,
-    winner,
-    black_quality,
-    white_quality,
-    black_summary,
-    white_summary
-):
-    event_loop = asyncio.get_event_loop()
-    event_loop.run_until_complete(
-        _perform_render_table(
-            renders_directory,
-            analysis_filename,
-            black_name,
-            white_name,
-            winner,
-            black_quality,
-            white_quality,
-            black_summary,
-            white_summary
-        )
-    )
-
-
-async def _perform_render_table(
     renders_directory,
     analysis_filename,
     black_name,
@@ -64,7 +33,7 @@ async def _perform_render_table(
         white_result = '-'
         white_result_class = 'neither'
 
-    mako_template = Template(html_template)
+    mako_template = Template(_template)
     html = mako_template.render(
         black_name=black_name,
         black_quality=black_quality,
@@ -78,25 +47,10 @@ async def _perform_render_table(
         white_summary=white_summary
     )
 
-    browser = await launch(defaultViewport=None)
-    page = await browser.newPage()
-    await page.setContent(html)
-    await page.screenshot(
-        {
-            'path': image_filename,
-            'fullPage': 'true',
-            'omitBackground': 'true'
-        }
-    )
-    await browser.close()
+    render_html(html, image_filename)
 
-    with Image.open(image_filename) as image:
-        bounding_box = image.getbbox()
-        if bounding_box:
-            cropped = image.crop(bounding_box)
-            cropped.save(image_filename)
 
-html_template = '''
+_template = '''
 <%!
 import numpy as np
 

@@ -1,4 +1,5 @@
 analyses_directory: analyses
+kifu_directory: kifu
 plots_directory: plots
 renders_directory: renders
 tables_directory: tables

@@ -12,6 +12,7 @@ import yaml
 
 from glob import glob
 from katago import KataGo, LineType
+from kifu import print_kifu
 from load_statistics import load_performances
 from parse import parse_sgf_contents, transform_sgf_to_command
 from plot import plot_distributions
@@ -61,6 +62,7 @@ def run(sgf_filename):
         summary['B'],
         summary['W']
     )
+    kifu_filename = print_kifu(configuration['kifu_directory'], analysis_filename, game)
 
     print('\nPlayer, Moves, Mistakes, p(Mistake), Loss Total, Loss Mean, Loss Std. Dev., Quality')
     for player in ['B', 'W']:
