@@ -1,5 +1,6 @@
 # © 2021 Joseph Craig <the.sadakatsu@gmail.com>
 # This code is not released under a standard OSS license.  Please read README.md.
+from typing import Tuple
 
 import matplotlib.font_manager
 import matplotlib.pyplot as plt
@@ -10,16 +11,28 @@ import scipy.stats
 from fontTools.ttLib import TTFont
 from matplotlib.ticker import MultipleLocator
 
-from common import get_filename_core
+from common import get_filename_core, ImageData
 from load_statistics import get_expected_result, load_performances, get_worst_moves
 from matplotlib import rcParams
 
 
-def plot_distributions(plots_directory: str, analysis_filename: str, black_name: str, white_name: str):
+def plot_distributions(
+    plots_directory: str,
+    analysis_filename: str,
+    black_name: str,
+    white_name: str,
+    target_width: int
+) -> Tuple[ImageData, ImageData]:
     # TODO: Refactor this code into two branches: one for KDE, one for expected result.
     _set_matplotlib_fonts(analysis_filename)
 
     filename_core = get_filename_core(analysis_filename)
+    distribution_filename = f'{plots_directory}/{filename_core}__kde.png'
+    expected_result_filename = f'{plots_directory}/{filename_core}__er.png'
+
+    width = target_width // 2
+    height = round(width * 3. / 4)
+    size = (width, height)
 
     performances = load_performances(analysis_filename, use_rounded=False)
     minimum = _get_safe_minimum(performances)
@@ -28,21 +41,50 @@ def plot_distributions(plots_directory: str, analysis_filename: str, black_name:
     black_performance = _get_performance(performances, 'B')
     white_performance = _get_performance(performances, 'W')
 
-    black_xs, black_ys = _generate_density_estimation(black_performance, minimum, maximum)
-    white_xs, white_ys = _generate_density_estimation(white_performance, minimum, maximum)
+    bin_width = 0.25
+    black_histogram_xs, black_histogram_ys = _generate_histogram(black_performance, minimum, maximum, bin_width)
+    white_histogram_xs, white_histogram_ys = _generate_histogram(white_performance, minimum, maximum, bin_width)
+
+    black_pdf_xs, black_pdf_ys = _generate_density_estimation(black_performance, minimum, maximum)
+    white_pdf_xs, white_pdf_ys = _generate_density_estimation(white_performance, minimum, maximum)
 
     plt.close('all')
-    plt.figure(1)
-    plt.title('Estimated Mistake Distribution')
-    plt.xlabel('Mistake Cost in Points')
-    plt.ylabel('Proportion of Moves')
-    plt.xlim(minimum, maximum)
-    plt.ylim(0., 1.)
-    plt.plot(black_xs, black_ys, label=f'Black ({black_name})')
-    plt.plot(white_xs, white_ys, label=f'White ({white_name})')
-    plt.legend(loc='upper right')
+    figure, axis_histogram = plt.subplots()
+    axis_histogram.set_title('Mistake Distribution')
+    axis_histogram.set_xlabel('better   <<   Mistake Cost in Points   >>   worse')
+    axis_histogram.set_ylabel('Proportion of Moves')
+    axis_histogram.set_xlim(minimum, maximum)
+    axis_histogram.set_ylim(0., 1.)
+    axis_histogram.grid(True, linewidth=0.5, zorder=0)
+
+    bar_width = bin_width * 2. / 5
+    axis_histogram.bar(
+        black_histogram_xs,
+        black_histogram_ys,
+        align='edge',
+        width=-bar_width,
+        label=f'{black_name} (Black)',
+        zorder=3
+    )
+    axis_histogram.bar(
+        white_histogram_xs,
+        white_histogram_ys,
+        align='edge',
+        width=bar_width,
+        label=f'{white_name} (White)',
+        zorder=3
+    )
+    axis_histogram.legend(loc='upper right')
+
+    axis_kde = axis_histogram.twinx()
+    axis_kde.set_ylabel('Estimated PDF')
+    axis_kde.plot(black_pdf_xs, black_pdf_ys, linewidth=0.75)
+    axis_kde.plot(white_pdf_xs, white_pdf_ys, linewidth=0.75)
+    axis_kde.set_ylim(bottom=0.)
+
     plt.tight_layout()
-    plt.savefig(f'{plots_directory}/{filename_core}__kde.png', format='png')
+    figure.set_size_inches(width / 100, height / 100)
+    plt.savefig(distribution_filename, format='png', dpi=100)
 
     expected_result = get_expected_result(analysis_filename)
     move_count = len(expected_result)
@@ -101,7 +143,13 @@ def plot_distributions(plots_directory: str, analysis_filename: str, black_name:
             )
 
     plt.tight_layout()
-    plt.savefig(f'{plots_directory}/{filename_core}__er.png', format='png')
+    figure.set_size_inches(width / 100, height / 100)
+    plt.savefig(expected_result_filename, format='png')
+
+    return (
+        ImageData(expected_result_filename, width, height),
+        ImageData(distribution_filename, width, height),
+    )
 
 
 def _set_matplotlib_fonts(analysis_filename: str):
@@ -153,6 +201,35 @@ def _get_safe_maximum(performances):
     a = np.max(performances[0][2])
     b = np.max(performances[1][2])
     return np.ceil(max(a, b))
+
+
+def _generate_histogram(performance: np.ndarray, minimum: int, maximum: int, bin_width: float = 0.1):
+    half_width = bin_width * 0.5
+    n = len(performance)
+    xs = []
+
+    x = minimum
+    i = -1
+    while x < maximum:
+        i += 1
+        x = minimum + i * bin_width
+        xs.append(x)
+
+    xs = np.array(xs)
+
+    ys = np.zeros(len(xs))
+    for value in performance:
+        # I don't like this nested loop.  I am using it while I try to fix how the histogram is being generated.  It
+        # might stay here because I am trying to move on with other things  >_<
+        for i, candidate in enumerate(xs):
+            difference = value - candidate
+            if -half_width <= difference < half_width:
+                index = i
+                break
+        ys[index] += 1
+    ys /= n
+
+    return xs, ys
 
 
 def _generate_density_estimation(performance: np.ndarray, minimum: int, maximum: int, steps: int = 5000):

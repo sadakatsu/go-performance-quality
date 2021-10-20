@@ -2,14 +2,15 @@ from typing import Tuple
 
 from mako.template import Template
 
-from common import get_filename_core, render_html
+from common import get_filename_core, render_html, ImageData
 
 
 def print_kifu(
     kifu_directory: str,
     analysis_filename: str,
-    game
-) -> str:
+    game,
+    height
+) -> ImageData:
     filename_core = get_filename_core(analysis_filename)
     kifu_filename = f'{kifu_directory}/{filename_core}.png'
 
@@ -41,15 +42,13 @@ def print_kifu(
 
     template = Template(_template)
     html = template.render(
+        dimension=height,
         overlaps=overlaps,
         rows=rows
     )
 
-    print(html)
-
-    render_html(html, kifu_filename)
-
-    return kifu_filename
+    size = render_html(html, kifu_filename)
+    return ImageData(kifu_filename, size[0], size[1])
 
 
 def _convert_coordinate_to_index(coordinate) -> Tuple[int, int]:
@@ -67,12 +66,12 @@ _template = '''
         <style>
             body {
                 font-family: Calibri, sans-serif;
-                height: 1116px;
+                height: ${dimension}px;
                 margin: 0px;
-                max-height: 1116px;
-                max-width: 1116px;
+                max-height: ${dimension}px;
+                max-width: ${dimension}px;
                 padding: 0px;
-                width: 1116px;
+                width: ${dimension}px;
             }
             
             .container {
@@ -83,8 +82,8 @@ _template = '''
             }
             
             .kifu {
-                max-height: 1116px;
-                max-width: 1116px;
+                max-height: ${dimension}px;
+                max-width: ${dimension}px;
             }
             
             .kifu-container {

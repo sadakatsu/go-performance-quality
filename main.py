@@ -11,6 +11,8 @@ import time
 import yaml
 
 from glob import glob
+
+from infographic import generate_infographic
 from katago import KataGo, LineType
 from kifu import print_kifu
 from load_statistics import load_performances
@@ -50,8 +52,7 @@ def run(sgf_filename):
     black_quality = f'{transformed[0, 0]:+0.3f}'
     white_quality = f'{transformed[1, 0]:+0.3f}'
 
-    plot_distributions(configuration['plots_directory'], analysis_filename, black_name, white_name)
-    render_table(
+    performance_table = render_table(
         configuration['renders_directory'],
         analysis_filename,
         black_name,
@@ -62,7 +63,33 @@ def run(sgf_filename):
         summary['B'],
         summary['W']
     )
-    kifu_filename = print_kifu(configuration['kifu_directory'], analysis_filename, game)
+
+    kifu = print_kifu(
+        configuration['kifu_directory'],
+        analysis_filename,
+        game,
+        performance_table.height
+    )
+
+    target_width = kifu.width + performance_table.width
+
+    expected_result, distribution = plot_distributions(
+        configuration['plots_directory'],
+        analysis_filename,
+        black_name,
+        white_name,
+        target_width
+    )
+
+    infographic = generate_infographic(
+        configuration,
+        analysis_filename,
+        game,
+        kifu,
+        performance_table,
+        expected_result,
+        distribution
+    )
 
     print('\nPlayer, Moves, Mistakes, p(Mistake), Loss Total, Loss Mean, Loss Std. Dev., Quality')
     for player in ['B', 'W']:
@@ -82,6 +109,7 @@ def run(sgf_filename):
             sep=', '
         )
 
+    print(f'\nYou can find your infographic at {infographic.filename} .')
 
 def load_configuration():
     with open('configuration/application.yaml') as infile:

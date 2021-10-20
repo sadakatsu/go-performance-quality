@@ -1,9 +1,13 @@
 analyses_directory: analyses
+brand: assets/go-performance-quality-brand.png
+infographics_directory: infographics
 kifu_directory: kifu
 plots_directory: plots
 renders_directory: renders
 tables_directory: tables
 transformation_parameters: configuration/hyperparameters.npy
+
+buffer: 32
 
 katago:
   executable: "C:/Go/KataGo/katago-v1.8.0-cuda11.2-windows-x64/katago.exe"

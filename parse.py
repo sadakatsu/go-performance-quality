@@ -267,7 +267,31 @@ def construct_node(properties):
             properties = [properties]
         for prop in properties:
             identifier = prop['identifier']
-            if identifier in ('AB', 'B', 'BR', 'DT', 'FF', 'GM', 'HA', 'KM', 'PB', 'PW', 'RE', 'RU', 'SZ', 'W', 'WR'):
+            if identifier in (
+                'AB',
+                'B',
+                'BR',
+                'BT',
+                'DT',
+                'EV',
+                'FF',
+                'GM',
+                'GN',
+                'HA',
+                'KM',
+                'OT',
+                'PB',
+                'PC',
+                'PW',
+                'RE',
+                'RO',
+                'RU',
+                'SZ',
+                'TM',
+                'W',
+                'WR',
+                'WT'
+            ):
                 node[identifier] = prop['value']
     return node
 

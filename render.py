@@ -1,6 +1,6 @@
 from mako.template import Template
 
-from common import get_filename_core, render_html
+from common import get_filename_core, render_html, ImageData
 
 
 def render_table(
@@ -13,7 +13,7 @@ def render_table(
     white_quality,
     black_summary,
     white_summary
-):
+) -> ImageData:
     filename_core = get_filename_core(analysis_filename)
     image_filename = f'{renders_directory}/{filename_core}.png'
 
@@ -47,7 +47,8 @@ def render_table(
         white_summary=white_summary
     )
 
-    render_html(html, image_filename)
+    size = render_html(html, image_filename)
+    return ImageData(image_filename, size[0], size[1])
 
 
 _template = '''
