@@ -27,18 +27,24 @@ def print_kifu(
                 rows[y][x] = 'W', None
         if 'B' in node:
             label = node['B']
-            x, y = _convert_coordinate_to_index(label)
-            if rows[y][x]:
-                overlaps.append(('B', move_number, label))
+            if not label:
+                overlaps.append(('B', move_number, 'pass'))
             else:
-                rows[y][x] = 'B', move_number
+                x, y = _convert_coordinate_to_index(label)
+                if rows[y][x]:
+                    overlaps.append(('B', move_number, label))
+                else:
+                    rows[y][x] = 'B', move_number
         if 'W' in node:
             label = node['W']
-            x, y = _convert_coordinate_to_index(label)
-            if rows[y][x]:
-                overlaps.append(('W', move_number, label))
+            if not label:
+                overlaps.append(('W', move_number, 'pass'))
             else:
-                rows[y][x] = 'W', move_number
+                x, y = _convert_coordinate_to_index(label)
+                if rows[y][x]:
+                    overlaps.append(('W', move_number, label))
+                else:
+                    rows[y][x] = 'W', move_number
 
     template = Template(_template)
     html = template.render(
@@ -531,7 +537,7 @@ _template = '''
             
             % if overlaps:
             <div class="overlap-container">
-                % for entry in overlaps:
+                % for entry in overlaps[0:min(100, len(overlaps))]:
                 <span class="overlap">
                     <svg class="stone" viewBox="0 0 100 100">
                         <circle
@@ -556,6 +562,9 @@ _template = '''
                     <span class="move">:&nbsp;${entry[2]}</span>
                 </span>
                 % endfor
+                % if len(overlaps) > 100:
+                <span>...</span>
+                % endif
             </div>
             %endif
         </div>

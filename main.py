@@ -6,6 +6,7 @@ import dateparser
 import numpy as np
 import os.path
 import json
+import re
 import sys
 import time
 import yaml
@@ -223,12 +224,14 @@ def get_file_creation_date_string(sgf):
 def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
     root = game[0]
     black_name = root['PB']
-    black_rank = ('' if 'BR' not in root else root['BR']).replace(r'[-?]', '')
+    black_rank_value = '' if 'BR' not in root else root['BR']
+    black_rank = re.sub(r'[-?]', '', black_rank_value)
     komi = 0 if 'KM' not in root else root['KM']
     handicap = '' if 'HA' not in root else root['HA']
     size = root['SZ']
     white_name = root['PW']
-    white_rank = ('' if 'WR' not in root else root['WR']).replace(r'[-?]', '')
+    white_rank_value = '' if 'WR' not in root else root['WR']
+    white_rank = re.sub(r'[-?]', '', white_rank_value)
 
     path = f'{analysis_date}__{size}x{size}-'
     if handicap:
