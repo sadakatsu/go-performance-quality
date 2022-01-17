@@ -111,7 +111,7 @@ _template = '''
             }
             
             .overlap-container {
-                background-color: DimGray;
+                background-color: rgb(97, 78, 25);
                 border: 1px solid black;
                 display: flex;
                 flex: 0 0 auto;
@@ -168,7 +168,7 @@ _template = '''
                     </defs>
                     
                     <!-- Grid -->
-                    <rect fill="gray" height="100%" stroke="black" stroke-width="3" width="100%" x="0" y="0" />
+                    <rect fill="rgb(148, 118, 38)" height="100%" stroke="black" stroke-width="3" width="100%" x="0" y="0" />
                     
                     <rect fill="url(#grid-horizontal-lines)" height="1803" width="1803" x="148.5" y="148.5"/>
                     <rect fill="url(#grid-vertical-lines)" height="1803" width="1803" x="148." y="148.5"/>

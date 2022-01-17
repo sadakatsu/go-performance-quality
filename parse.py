@@ -439,6 +439,7 @@ def transform_sgf_to_command(main_variation, convert=True):
     output = {
         "id": str(uuid.uuid4()),
         "moves": moves,
+        "includePolicy": True,
         "initialStones": [],
         "initialPlayer": 'B' if 'B' in main_variation[1] else 'W',
         "rules": 'japanese' if 'RU' not in setup_node else setup_node['RU'].lower(),

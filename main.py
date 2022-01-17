@@ -177,7 +177,7 @@ def perform_analysis(sgf_filename, game, base_name, analyses_directory, katago_c
 
     start = time.time()
     katago.write_message(command)
-    analysis, total_visits = compose_analysis(katago, initial_player, positions, start)
+    analysis, total_visits = compose_analysis(katago, initial_player, positions, start, game)
     end = time.time()
     print(
         f'Game reviewed in {end - start:0.3f} seconds ({total_visits} total visits, '
@@ -250,7 +250,8 @@ def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
     return f'{analyses_directory}/{path}'
 
 
-def compose_analysis(katago, first_player, move_count, start):
+def compose_analysis(katago, first_player, move_count, start, game):
+    # TODO: This logic needs to account for board transformations for properly handling the policy results.  Add this!
     second_player = 'W' if first_player == 'B' else 'B'
     analysis = [
         {
@@ -278,13 +279,53 @@ def compose_analysis(katago, first_player, move_count, start):
                 continue
 
             output = json.loads(line.rstrip())
+
             turn = output['turnNumber']
             value = output['moveInfos'][0]['scoreLead']
 
             visits = sum(map(lambda node: node['visits'], output['moveInfos']))
             total_visits += visits
             if turn + 1 < move_count:
-                analysis[turn]['before'] = value
+                current = analysis[turn]
+
+                current['before'] = value
+
+                move_entry = game[turn + 1]
+                next_move = move_entry['B'] if 'B' in move_entry else move_entry['W']
+                current['played'] = next_move
+
+                policy = []
+                i = 0
+                for row in range(19, 0, -1):
+                    for column in 'ABCDEFGHJKLMNOPQRST':
+                        probability = output['policy'][i]
+                        i += 1
+                        if probability < 0:
+                            continue
+                        move_entry = f'{column}{row}'
+                        policy.append([move_entry, probability])
+                policy.append(['pass', output['policy'][i]])
+                policy.sort(key=lambda x: x[1], reverse=True)
+                move_entry = [x for x in enumerate(policy) if x[1][0] == next_move][0]
+
+                best_move = output['moveInfos'][0]['move']
+                best_move_entry = [x for x in enumerate(policy) if x[1][0] == best_move][0]
+
+                best_policy = best_move_entry[1][1]
+                favorite_policy = policy[0][1]
+                played_policy = move_entry[1][1]
+
+                current['policy'] = played_policy
+                current['ranking'] = move_entry[0] + 1
+                current['potential_moves'] = len(policy)
+                current['favorite'] = policy[0][0]
+                current['favorite_policy'] = favorite_policy
+                current['favorite_played_delta'] = favorite_policy - played_policy
+                current['best'] = best_move
+                current['best_policy'] = best_policy
+                current['best_ranking'] = best_move_entry[0] + 1
+                current['favorite_best_delta'] = favorite_policy - best_policy
+                print(current)
             if turn > 0:
                 analysis[turn - 1]['after'] = -value
             done += 1
@@ -300,13 +341,27 @@ def compose_analysis(katago, first_player, move_count, start):
 
     print('All positions analyzed, compositing analysis...')
 
-    for entry in analysis:
-        delta = entry['before'] - entry['after']
-        entry['delta'] = delta
-        if delta < 0.5:
+    # Developer's Note: (J. Craig, 2022-01-12)
+    # Adding logic to track how each player's moves compared with the best move and policy favorite revealed that
+    # KG's score estimation can be further off than I thought.  If the player plays the AI's best move, the move should
+    # never be considered a mistake.  That position's score needs to be pushed to the previous move as the expected
+    # result.
+    for i in range(len(analysis) - 1, -1, -1):
+        entry = analysis[i]
+        if entry['played'] == entry['best']:
+            entry['before'] = entry['after']
+            entry['delta'] = 0
             entry['mistake'] = 0
+            if i > 0:
+                analysis[i - 1]['after'] = -entry['after']
         else:
-            entry['mistake'] = round(delta)
+            delta = entry['before'] - entry['after']
+            entry['delta'] = delta
+            if delta < 0.5:
+                entry['mistake'] = 0
+            else:
+                entry['mistake'] = round(delta)
+
     print('Analysis complete.')
 
     return analysis, total_visits
@@ -316,7 +371,10 @@ def save_analysis(analysis_filename, analysis):
     print(f'Writing analysis to {analysis_filename}...')
 
     with open(analysis_filename, 'w', encoding='utf-8') as csvfile:
-        csvfile.write('Move,Player,Before,After,Delta,Mistake\n')
+        csvfile.write(
+            'Move,Player,Before,After,Delta,Mistake,Played,Played Policy,Played Ranking,Legal Moves,Favorite,Favorite '
+            'Policy,Delta: Favorite to Played,Best,Best Policy,Best Ranking,Delta: Favorite to Best\n'
+        )
         for entry in analysis:
             csvfile.write(
                 ','.join(
@@ -326,7 +384,18 @@ def save_analysis(analysis_filename, analysis):
                         str(entry['before']),
                         str(entry['after']),
                         str(entry['delta']),
-                        str(entry['mistake'])
+                        str(entry['mistake']),
+                        str(entry['played']),
+                        str(entry['policy']),
+                        str(entry['ranking']),
+                        str(entry['potential_moves']),
+                        str(entry['favorite']),
+                        str(entry['favorite_policy']),
+                        str(entry['favorite_played_delta']),
+                        str(entry['best']),
+                        str(entry['best_policy']),
+                        str(entry['best_ranking']),
+                        str(entry['favorite_best_delta'])
                     ]
                 ) +
                 '\n'

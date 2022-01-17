@@ -5,8 +5,6 @@ from typing import Tuple
 import matplotlib.font_manager
 import matplotlib.pyplot as plt
 import numpy as np
-import re
-import scipy.stats
 
 from fontTools.ttLib import TTFont
 from matplotlib.ticker import MultipleLocator
@@ -14,6 +12,9 @@ from matplotlib.ticker import MultipleLocator
 from common import get_filename_core, ImageData
 from load_statistics import get_expected_result, load_performances, get_worst_moves
 from matplotlib import rcParams
+
+from kde import generate_density_estimation
+from histogram import generate_histogram
 
 
 def plot_distributions(
@@ -42,11 +43,11 @@ def plot_distributions(
     white_performance = _get_performance(performances, 'W')
 
     bin_width = 0.25
-    black_histogram_xs, black_histogram_ys = _generate_histogram(black_performance, minimum, maximum, bin_width)
-    white_histogram_xs, white_histogram_ys = _generate_histogram(white_performance, minimum, maximum, bin_width)
+    black_histogram_xs, black_histogram_ys = generate_histogram(black_performance, minimum, maximum, bin_width)
+    white_histogram_xs, white_histogram_ys = generate_histogram(white_performance, minimum, maximum, bin_width)
 
-    black_pdf_xs, black_pdf_ys = _generate_density_estimation(black_performance, minimum, maximum)
-    white_pdf_xs, white_pdf_ys = _generate_density_estimation(white_performance, minimum, maximum)
+    black_pdf_xs, black_pdf_ys = generate_density_estimation(black_performance, minimum, maximum)
+    white_pdf_xs, white_pdf_ys = generate_density_estimation(white_performance, minimum, maximum)
 
     plt.close('all')
     figure, axis_histogram = plt.subplots()
@@ -201,54 +202,3 @@ def _get_safe_maximum(performances):
     a = np.max(performances[0][2])
     b = np.max(performances[1][2])
     return np.ceil(max(a, b))
-
-
-def _generate_histogram(performance: np.ndarray, minimum: int, maximum: int, bin_width: float = 0.1):
-    half_width = bin_width * 0.5
-    n = len(performance)
-    xs = []
-
-    x = minimum
-    i = -1
-    while x < maximum:
-        i += 1
-        x = minimum + i * bin_width
-        xs.append(x)
-
-    xs = np.array(xs)
-
-    ys = np.zeros(len(xs))
-    for value in performance:
-        # I don't like this nested loop.  I am using it while I try to fix how the histogram is being generated.  It
-        # might stay here because I am trying to move on with other things  >_<
-        for i, candidate in enumerate(xs):
-            difference = value - candidate
-            if -half_width <= difference < half_width:
-                index = i
-                break
-        ys[index] += 1
-    ys /= n
-
-    return xs, ys
-
-
-def _generate_density_estimation(performance: np.ndarray, minimum: int, maximum: int, steps: int = 5000):
-    xs = []
-    ys = []
-    n = len(performance)
-    h = _estimate_bandwidth(performance)
-    coefficient = 1. / (h * np.sqrt(2 * np.pi))
-    step_size = (maximum - minimum) / float(steps)
-    for i in range(steps + 1):
-        x = minimum + i * step_size
-        xs.append(x)
-        y = np.sum(np.exp(-0.5 * ((x - performance) / h) ** 2) * coefficient) / n
-        ys.append(y)
-    return xs, ys
-
-
-def _estimate_bandwidth(performance: np.ndarray):
-    s = np.std(performance)
-    iqr = scipy.stats.iqr(performance)
-    coefficient = len(performance) ** (-1. / 5.)
-    return 0.9 * min(s, iqr / 1.34) * coefficient
