@@ -410,11 +410,16 @@ def transform_node(node):
 def transform_sgf_to_command(main_variation, convert=True):
     setup_node = main_variation[0]
     print(setup_node)
-    if 'GM' not in setup_node or setup_node['GM'] != 1:
+    # Developer's Note: (J. Craig, 2022-02-24)
+    # I have a lot of crappy SGFs to process.  Rather than fixing them all, I am making my code more tolerant for now.
+    # if 'GM' not in setup_node or setup_node['GM'] != 1:
+    if 'GM' in setup_node and setup_node['GM'] != 1:
         raise Exception('Wrong game')
-    elif 'FF' not in setup_node or setup_node['FF'] != 4:
+    # elif 'FF' not in setup_node or setup_node['FF'] != 4:
+    elif 'FF' in setup_node and setup_node['FF'] != 4:
         raise Exception('Wrong format')
-    elif 'SZ' not in setup_node or setup_node['SZ'] != 19:
+    # elif 'SZ' not in setup_node or setup_node['SZ'] != 19:
+    elif 'SZ' in setup_node and setup_node['SZ'] != 19:
         raise Exception('Wrong size')
     elif 'HA' in setup_node and (setup_node['HA'] < 0 or setup_node['HA'] > 9):
         raise Exception('Wrong handicap')

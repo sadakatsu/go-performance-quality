@@ -18,10 +18,16 @@ def print_kifu(
     rows = [[None for x in range(19)] for y in range(19)]
     for move_number, node in enumerate(game):
         if 'AB' in node:
+            # OGS -_-
+            if not isinstance(node['AB'], list):
+                node['AB'] = [node['AB']]
             for label in node['AB']:
                 x, y = _convert_coordinate_to_index(label)
                 rows[y][x] = 'B', None
         if 'AW' in node:
+            # OGS -_-
+            if not isinstance(node['AW'], list):
+                node['AW'] = [node['AW']]
             for label in node['AW']:
                 x, y = _convert_coordinate_to_index(label)
                 rows[y][x] = 'W', None

@@ -2,6 +2,8 @@
 # This code is not released under a standard OSS license.  Please read README.md.
 
 import csv
+from typing import Optional, Callable
+
 import dateparser
 import numpy as np
 import os.path
@@ -22,8 +24,41 @@ from plot import plot_distributions
 from render import render_table
 
 
+katago: Optional[KataGo] = None
+get_katago: Optional[Callable[[], KataGo]] = None
+
+
+def prep_katago(katago_configuration: dict):
+    global get_katago, katago
+
+    def created():
+        global katago
+
+        if not katago:
+            print('Starting KataGo...')
+            katago = KataGo(
+                katago_configuration['executable'],
+                katago_configuration['configuration'],
+                katago_configuration['model'],
+                analysis_threads=katago_configuration['analysisThreads'],
+                search_threads=katago_configuration['searchThreads']
+            )
+            while not katago.ready:
+                time.sleep(0.001)
+            print('KataGo started.')
+
+        return katago
+
+    get_katago = created
+
+
 def run(sgf_filename):
+    global katago
+
     configuration = load_configuration()
+
+    prep_katago(configuration['katago'])
+
     parameters, transformation = load_parameters(configuration['transformation_parameters'])
 
     game = load_sgf(sgf_filename)
@@ -112,6 +147,9 @@ def run(sgf_filename):
 
     print(f'\nYou can find your infographic at {infographic.filename} .')
 
+    if katago:
+        katago.kill()
+
 def load_configuration():
     with open('configuration/application.yaml') as infile:
         configuration = yaml.safe_load(infile)
@@ -147,7 +185,7 @@ def get_base_filename(file):
     index = filename.rfind('.')
     if index != -1:
         filename = filename[:index]
-    return filename
+    return re.sub(r'\s+', '_', filename)
 
 
 def find_existing_analysis(base_name, analyses_directory):
@@ -163,17 +201,8 @@ def perform_analysis(sgf_filename, game, base_name, analyses_directory, katago_c
     analysis_filename = build_analysis_filename(analyses_directory, game, base_name, analysis_date)
     command, initial_player, positions = transform_sgf_to_command(game, convert=False)
 
-    print('Starting KataGo...')
-    katago = KataGo(
-        katago_configuration['executable'],
-        katago_configuration['configuration'],
-        katago_configuration['model'],
-        analysis_threads=katago_configuration['analysisThreads'],
-        search_threads=katago_configuration['searchThreads']
-    )
-    while not katago.ready:
-        time.sleep(0.001)
-    print('KataGo started. Sending game for analysis...')
+    katago = get_katago()
+    print('Sending game for analysis...')
 
     start = time.time()
     katago.write_message(command)
@@ -183,7 +212,6 @@ def perform_analysis(sgf_filename, game, base_name, analyses_directory, katago_c
         f'Game reviewed in {end - start:0.3f} seconds ({total_visits} total visits, '
         f'{total_visits / (end - start):0.3f} visits per second).'
     )
-    katago.kill()
 
     save_analysis(analysis_filename, analysis)
     return analysis_filename
@@ -228,7 +256,7 @@ def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
     black_rank = re.sub(r'[-?]', '', black_rank_value)
     komi = 0 if 'KM' not in root else root['KM']
     handicap = '' if 'HA' not in root else root['HA']
-    size = root['SZ']
+    size = root['SZ'] if 'SZ' in root else 19
     white_name = root['PW']
     white_rank_value = '' if 'WR' not in root else root['WR']
     white_rank = re.sub(r'[-?]', '', white_rank_value)
@@ -243,7 +271,7 @@ def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
     if black_rank:
         path += f'-{black_rank}'
     path += f'__{base_name}.csv'
-    path = path.replace(r'\W+', '_')
+    path = re.sub(r'\s+', '_', path)
 
     print('DEBUG: path is', path)
 
@@ -292,6 +320,8 @@ def compose_analysis(katago, first_player, move_count, start, game):
 
                 move_entry = game[turn + 1]
                 next_move = move_entry['B'] if 'B' in move_entry else move_entry['W']
+                if not next_move:
+                    next_move = 'pass'
                 current['played'] = next_move
 
                 policy = []
