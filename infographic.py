@@ -73,7 +73,6 @@ def generate_infographic(
 
 def _compose_header(game: List[dict], buffer: int, width: int) -> ImageData:
     root = game[0]
-    print(root)
 
     title, subtitle = _get_title_and_subtitle(root)
 

@@ -1,14 +1,12 @@
+<img src="infographics/1846-07-25__19x19-0-Gennan%20Inseki-8p-vs-Honinbo%20Shusaku-4p__ear-reddening-game.png" style="float: right; max-width: 300px; margin-bottom: 1em; margin-left: 1em;">
+
 # go-performance-quality
 
 Analyze Go games to generate metrics representing how well each player played.
 
-| Performance Table | Expected Result Graph | Estimated Mistake Distribution |
-| --- | --- | --- |
-| <img src="renders/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun.png" height="500" /> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__er.png" /> | <img src="plots/2021-09-12__19x19-7.5-Nie Weiping-9p-vs-Cho Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__kde.png" /> |
-
 ### WARNING: This is _not_ distributed under a standard open-source software license.
 
-> © 2021 Joseph Craig <the.sadakatsu@gmail.com>
+> © 2022 Joseph Craig <the.sadakatsu@gmail.com>
 
 This is an experimental project that I intend to turn into a full product.  I am releasing this code so that people can
 use this tool for personal use.  If you wish to use this software, you may use the code to analyze Go games, and may
@@ -33,23 +31,49 @@ If you are interested in collaborating or wish to request permission to use some
 purpose than I generally described above, please contact me at `the DOT sadakatsu AT gmail DOT com`.
 
 ### Explanation
-This project is a research effort to determine whether it is possible to assess how well players performed in a Go game.
-It generates a single scalar value that I call the Quality score for each performance in a game that provides a
-semi-objective means of comparing how one played across different games.
+This program generates a scalar value that I call the Quality score for the game overall (Game Quality) and for
+each performance in the game (Play Quality).  These numbers are calculated on the same scale so the three values for a
+game can be compared against each other while still being meaningful (but not necessarily powerful) for comparing
+performances across different games.
 
-The gist of the Quality score is that it is better to make smaller mistakes than larger ones, and even better to not
-mistakes at all.  It is a complicated linear transformation of the features that can be observed from a KataGo review.
-I have found that it does a pretty good (not perfect!) job of giving me some good perspective on whether I played well
-in a particular game.  Quality scores are continuous values (rounded to the thousandth's place), so they naturally
-capture uncertainty for the comparisons.
+The basic idea behind the Quality Score should be fairly intuitive.
 
-These values are not manually bounded, but all the games I have analyzed with this algorithm have generated scores in
-the range of `(-10, +10)`.  You can basically expect that a larger difference between two performances indicates greater
-certainty that one performance is reliably more free of mistakes than another.  A difference of at least `0.5` has
-empirically shown to capture that a player played markedly better than the other.  I am currently investigating whether
-differences greater than `1` indicate that one player played stones stronger than the other (e.g., when I play against
-a mid-dan, they tend to score at least `2` better than I, an OGS 1k, do).
+1. The best moves a player can play in a position are the minimax optimal moves.  These lose 0 points.  Any move that is
+not the best move will lose some number of points based upon how bad a mistake the move is.
+2. A player performs better in a position by losing fewer points with his move than by choosing a move that loses more.
+3. A player's performance in a game is the set of losses he accrued for each move he played that game.
+4. The game itself can be scored by combining both players' performances into one virtual performance.
 
+Using the process described in the Methodology section at the bottom, the GPQ algorithm converts the three performances
+into a number that is usually bounded between 100 (AlphaGo Master playing _really_ well) and 0 (low-level DDKs).  It is
+possible to score outside this range; most people will not.
+
+I have seen four basic scenarios while looking at this triple of Quality Scores across many games.
+
+- The Game Quality is between the two Play Qualities, and the Play Qualities are well within 5-10 points of each other.
+  That means that one player performed better than the other.  I recommend you study these games in particular when you
+  lose them; one or more of your weaknesses might be identified by this game.
+- The Game Quality is between the two Play Qualities, but the Play Qualities are far apart.  One player is stronger than
+  the other, probably by several stones.  The loser might learn a little by studying the game.  It's better to just move
+  on.
+- Both Play Qualities are higher than the Game Quality.  I think these are games that were very difficult for some
+  reason.  I suspect that both players should feel proud of such a game.  Study them if the Quality Scores are low.
+  Analyze them if the Quality Scores are high to see what you saw, thought, or did differently.  Maybe you're on the
+  verge of a breakthrough!
+- Both Play Qualities are lower than the Game Quality.  I have seen this once with the Ear-Reddening Game.  That's too
+  few samples to draw any real conclusion.
+
+I do not yet have sufficient data to attempt to translate Quality Scores into possible ratings.  This is one of the
+stretch goals for my project.
+
+NOTE: We do not have a minimax oracle for Go.  I cannot score player performances objectively.  I use KataGo because it
+estimates the game's expected result for each position.  Comparing the estimated results of its preferred move and the
+player's move allows me to approximate having a minimax oracle.  This means that there are sometimes moves that have
+negative losses: they gain points in reference to KataGo's preferred move, usually at the cost of winning rate
+percentage points.  This is why I claim that GPQ generates "semi-objective" analysis of the games.  KataGo is biased,
+but its biases have little overlap with those that cloud human judgment when evaluating games.
+
+### Recommended and Discouraged Uses
 I recommend Quality scores for the following purposes:
 
 1. I personally have a hard time objectively evaluating how I played.  My emotions get the best of me.  I regularly feel
@@ -90,15 +114,11 @@ I discourage using Quality scores for the following purposes:
    playing that person directly.  Their scores will be relative to their strength and their opponents' strengths.  It
    may be possible for two sets of players two get the same Quality scores, yet people reviewing the game could clearly
    conclude that one game was at a higher level than the other.
-3. Obsessively trying to determine why one game was better than another.  This algorithm has quirks.  It favors shorter
-   games over longer ones.  Not only do shorter games have fewer opportunities for mistakes, but the hyperparameter
-   tuning is based upon statistical tests for whether one performance was better or worse than another.  It is difficult
-   for a longer performance to avoid enough mistakes that it can be proven to be better than a short one.  Furthermore,
-   this program was tuned based upon my games.  The scale/orientation of these values is therefore skewed.  I also
-   discovered that testing this system with artificially awful performances (worse than 18 points lost every move) that
-   the system breaks down.  This note should not discourage the use of this application, as real games prohibit players
-   from having the opportunity to make such large mistakes endlessly.  It should simply be an encouragement that, if one
-   cannot see why one performance might be better than another, to decide not to worry about it. 
+3. Obsessively trying to determine why one game was better than another.  This algorithm has quirks.  I have data that
+   shows the current version is better correlated with the features than the previous two versions, but it is in some
+   cases too concerned about the `p(Mistake)` stat and too unconcerned about how large the mistakes were.  I wish I
+   could say that the scores generated are authoritative and unarguable.  I cannot.  Use them as a tool to help you, and
+   ignore the occasional situation where you can see that the scores are "wrong".
 
 ### Set up for use
 
@@ -139,86 +159,174 @@ You should see output like the following the first time you analyze an SGF.  If 
 times, it will reuse the past analysis and skip running KataGo again.
 
 ```
-(goperformance) > python main.py C:\Users\josep\Dropbox\Kifu\stream\0263-01.sgf
-Evaluating C:\Users\josep\Dropbox\Kifu\stream\0263-01.sgf...
+
+(goperformance) C:\Users\josep\source\repos\go-performance-quality>python main.py C:\Users\josep\Dropbox\Kifu\professional\ear-reddening-game.sgf
+Evaluating C:\Users\josep\Dropbox\Kifu\professional\ear-reddening-game.sgf...
 Parsing SGF succeeded.
-{'FF': 4, 'GM': 1, 'DT': '2021-08-24', 'PB': 'TotallyNotMe', 'PW': 'sadakatsu', 'BR': '1k', 'WR': '1k', 'RE': 'B+R', 'SZ': 19, 'KM': 6.5, 'RU': 'Japanese'}
+DEBUG: path is 1846-07-25__19x19-0-Gennan_Inseki-8p-vs-Honinbo_Shusaku-4p__ear-reddening-game.csv
+{'GM': 1, 'FF': 4, 'SZ': 19, 'PW': 'Gennan Inseki', 'RE': 'B+3', 'PB': 'Honinbo Shusaku', 'PC': 'Japan', 'WR': '8p', 'BR': '4p', 'DT': '1846-7-25', 'KM': 0, 'GN': 'The Ear-Reddening Game'}
 Starting KataGo...
-KataGo started. Sending game for analysis...
-  1 moves analyzed.  Turn 10 was searched for 16384 visits; 17.741 seconds elapsed; 923.504 VPS.
-  2 moves analyzed.  Turn 11 was searched for 16384 visits; 20.204 seconds elapsed; 1621.896 VPS.
-  3 moves analyzed.  Turn 13 was searched for 16384 visits; 24.873 seconds elapsed; 1976.114 VPS.
-## Lines removed to conserve space
-  98 moves analyzed.  Turn 98 was searched for 16384 visits; 425.914 seconds elapsed; 3769.849 VPS.
-  99 moves analyzed.  Turn 95 was searched for 16384 visits; 428.987 seconds elapsed; 3781.038 VPS.
-  100 moves analyzed.  Turn 99 was searched for 16384 visits; 430.972 seconds elapsed; 3801.636 VPS.
+KataGo started.
+Sending game for analysis...
+1 positions analyzed.  Turn 13 completed; 28.587 seconds elapsed; 28.587 SPP.
+2 positions analyzed.  Turn 17 completed; 28.650 seconds elapsed; 14.325 SPP.
+3 positions analyzed.  Turn 15 completed; 29.777 seconds elapsed; 9.926 SPP.
+# lines removed to conserve space
+324 positions analyzed.  Turn 321 completed; 1038.733 seconds elapsed; 3.206 SPP.
+325 positions analyzed.  Turn 319 completed; 1043.356 seconds elapsed; 3.210 SPP.
+326 positions analyzed.  Turn 325 completed; 1048.216 seconds elapsed; 3.215 SPP.
 All positions analyzed, compositing analysis...
 Analysis complete.
-Game reviewed in 430.972 seconds (1638400 total visits, 3801.636 visits per second).
-Writing analysis to analyses/2021-08-24_0263-01.csv...
+Game reviewed in 1051.035 seconds (3.224 seconds per position).
+Writing analysis to analyses/1846-07-25__19x19-0-Gennan_Inseki-8p-vs-Honinbo_Shusaku-4p__ear-reddening-game.csv...
 Analysis saved.
-Player, Moves, Mistakes, p(Mistake), Loss Total, Loss Mean, Loss Std. Dev., Quality
-Black, 50, 26, 0.520, 60, 1.200, 1.371, +4.358
-White, 49, 31, 0.633, 79, 1.612, 1.627, +2.079
 
-Process finished with exit code 0
+Overall Quality: 89.959
+Honinbo Shusaku (B)'s Quality: 89.872
+Gennan Inseki (W)'s Quality: 84.679
+
+Rendering performance table...
+Rendering kifu...
+Rendering distribution plots...
+Compiling final infographic...
+
+You can find your infographic at infographics/1846-07-25__19x19-0-Gennan_Inseki-8p-vs-Honinbo_Shusaku-4p__ear-reddening-game.png .
 ```
 
-### Interpreting the results
+<img src="assets/infographic-sections.png" style="float: right; margin-bottom: 1em; margin-left: 1em; width: 300px;">
 
-The program has two outputs: a table that summarizes the results, and a file that contains the by-position analysis for
-the whole game.
+### Reading the Infographic
 
-#### The table
-- `Player`: the color of the player for whom this row's stats apply
-- `Moves`: how many moves the player made in this performance
-- `Mistakes`: how many moves cost the player at 0.5 points from his expected endgame score
-- `p(Mistake)`: the proportion of Moves that were Mistakes; `Mistakes / Moves`
-- `Loss Total`: the sum of the rounded Mistake values across all the Moves this player made this performance
-- `Loss Mean`: the average number of points this player lost per move
-- `Loss Std. Dev.`: the standard deviation of the Loss Mean; roughly 68% of this player's moves had Mistakes that
-  were within the bounds of `[Loss Mean - Loss Std. Dev., Loss Mean + Loss Std. Dev.]`
-- `Quality`: the Quality score discussed above.
+There are four useful sections within the generated infographic whose meaning may not be transparent.  These are the
+kifu, the statistics table, the expected result graph, and the distribution plot.  They are labeled in the diagram to
+the right.
 
-#### The file
-The analysis produces a CSV file that tracks the expected game outcome and the mistake magnitude for each position in
-the game.  It has the following columns:
-- `Move`: the turn number for the current row
-- `Player`: `B` if Black played this move, otherwise `W`
-- `Before`: the expected score before the player made this move, reported from `Player`'s perspective; it is the
-  negative value of the previous row's `After` value (except for the first row)
-- `After`: the expected score after the player made this move, reported from `Player`'s perspective
-- `Delta`: `Before` - `After`, the expected result's change caused by this move
-- `Mistake`: `round(Delta)`, the Mistake value for this Move; it is clamped so it is never lower than zero
+#### Kifu
+The kifu records the game from beginning to end in a single diagram.  If you have never seen a kifu before, each
+intersection shows the first stone color that was placed in that intersection and the move number when it was placed
+there.  Handicap stones have no numbers on them.  If there are turns that place a stone where another stone used to be,
+or there are intermediate passes within the game, the callout beneath the kifu shows what color played that move, the
+turn number when it occurred, and the coordinate at which that move was played (or "pass" if it was a pass).  If you
+have seen a kifu before, the only difference is that I opted to use a more modern convention of using the replaced
+stone's coordinate instead of move number.  I personally hate searching the diagram twice for finding a move I did not
+expect.
 
-#### The graphics
-The program generates one color-coded table and two plots.
+The kifu serves three purposes in the infographic:
 
-The table captures all the same metrics that are generated in the command line.  It includes presents each player's
-mistake distributions as captured by the percentiles (e.g., _x_ percent of moves cost _y_ or fewer points).  It finishes
-the display by listing each player's ten worst mistakes' point costs in descending order.  This all combines to provide
-a high-level overview of the players' performances and to explain why each player got the quality score that he did.
-All values are color-coded in reference to the source dataset I used to calibrate the classifier.  With the exception of
-`Moves`, these color codes indicate how good the value is (green/blue for best, yellow/white for average, red for either
-worst possible or four standard deviations away from the average).  `Moves` is not really a quality indicator, but it is
-color-coded to note how reliable the metrics generated by this program are likely to be; really short games are likely
-to have inflatedly good "results".
+1. If you keep a collection of your analyses (please do!), the kifu can provide a quick way to identify at which game
+   you are looking.
+2. You can use it to review your game on a real board while also looking at the other analysis data when you choose.
+3. I think it makes the infographic look nice.
 
-![Cho Hunhyun 9p vs. Nie Weiping 9p Performance Table](renders/2021-09-12__19x19-7.5-Nie%20Weiping-9p-vs-Cho%20Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun.png)
 
-The first plot shows the expected result for the game for each turn combined with two graphs that show each player's worst
-ten moves.  A positive _y_ value indicates Black is leading by that many points.
+### Statistics table
+The statistics table could be considered the whole point of GPQ.  It shows how each player played, using color-coding
+for quick comparisons (my apologies to the color blind; I do not know a better way to differentiate data at a glance).
+The first column shows the row labels, the second column captures the metrics for Black, and the third column captures
+the metrics for White.  The table is vertically divided into three subtables that help paint the whole picture of how
+the game went.
 
-![Cho Hunhyun 9p vs. Nie Weiping 9p Expected Result](plots/2021-09-12__19x19-7.5-Nie%20Weiping-9p-vs-Cho%20Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__er.png)
+#### Top section: scores
+The scores section gives the high-level view of the game.  The rows capture the following metrics with the given
+meanings and color coding scales:
 
-The other plot shows the players' mistake distributions using Gaussian kernel density
-estimation (KDE).  This provides a much better understanding of how each player performed than the statistical moments of `Loss Mean` and
-`Loss Std. Dev.` on their own:
+- `Result`: Which player won.  Some argue that this is the most important metric.  I guess they've never had a win they
+  feel badly about or a loss they feel good about.  Win is green, loss is red, no result is yellow.
+- `Game Quality`: The Quality Score generated for the virtual performance representing both players.  This is the only
+  cell that refers to both players.  See the [Explanation](#Explanation) section on guidance for interpreting it.  It is
+  color-coded with a gradient.  100 is a green, 50 is a yellow, and 0 is a red.
+- `Play Quality`: The Quality score calculated for the player's performance.  It is colored using the same gradient as
+  Game Quality so the three values can be compared at a glance.  If you cannot distinguish the colors, the game was
+  probably a good match-up!
+- `Moves`: How many moves each player made.  The number of moves has a direct impact on how "sparse" the feature vector
+  for the performance is; more moves means a more trustworthy analysis.  You can think of this color coding as
+  representing how seriously you can take the score.  Red means "not very seriously", white means "seriously", and green
+  means "very seriously".
+- `Mistakes`: How many moves each player made that lost 0.5 moku or more.  This is color-coded to be identical to the
+  color-coding for p(Mistake) below.
+- `p(Mistake)`: The proportion of moves each player made that were mistakes.  This is literally `Mistakes / Moves`.  This
+  is color-coded with a gradient.  0 is a green, 0.519 is a yellow (the mean p(Mistake) from my dataset), and 1 is a
+  red.
+- `Loss Total`: A situationally useful metric.  It is intended to capture the total number of points each player risked
+  with his mistakes over the course of the game.  However, most games have moves where at least one player finds a move
+  that gains points against KataGo's selected move.  I have seen this happen in an AlphaGo Master self-play game where
+  a move Black played was a 14-point "mistake", but Black's next move after that was a 15-point "gain".  I tried a few
+  schemes to try to make this generally useful.  Sadly, a straightforward sum of the rounded mistake values is the best.
+  So, if you see a game where the Loss Total looks low in comparison to the Ten Worst Mistakes, ignore it.<br>It is
+  color-coded on a gradient with 0 as a green, 187 as a yellow (the mean loss total from my dataset), and 634 as a red.
+- `Loss Mean`: Literally `Loss Total / Moves`.  It is the average number of moku each player lost per move.  It is
+  color-coded on a gradient with 0 as a green, 2.056 as a yellow (the mean loss mean from my dataset), and 6.392 as a
+  red.
+- `Loss Std. Dev.`: The standard deviation of each player's mistakes in moku.  This score is useful for showing how
+  consistently a player performed that game.  It is color-coded on a gradient with 0 as a green, 3.163 as a yellow (the
+  mean from my dataset), and 9.207 as a red.
 
-![Cho Hunhyun 9p vs. Nie Weiping 9p KDE](plots/2021-09-12__19x19-7.5-Nie%20Weiping-9p-vs-Cho%20Hunhyun-9p__3b06-gokifu-20210912-Nie_Weiping-Cho_Hunhyun__kde.png)
+#### Middle section: loss distribution
+This section uses [percentiles](https://en.wikipedia.org/wiki/Percentile) to non-parametrically show how well each
+player performed that game.  Each row is labeled as `Percentile: x` to show which percentile it represents, and the rows
+increase from the fifth percentile to the ninety-fifth by increments of five.  You can use the row's label and the value
+to mean `x percent of this player's moves cost him y moku or less`.  For example, in the Ear-Reddening Game, the table
+shows that 95% of Shuusaku's moves cost him 3 moku or less.
 
-The ideal is to have a high peak reaching `y=1.0` around `x=0` to indicate an absolutely perfect game.  The more and
-larger mistakes players make, the more humps will appear as `x` increases.  You can see what proportion of a players
-moves each player made that cost them `x` points this way, and get an idea as to why the program generated the Quality
-scores that it did.
+These are color-coded with a gradient so you can compare the two players' performances side-by-side by their "shapes".
+0 moku lost is a darkish blue, 1 is a moderate blue, 2 is a light blue, and 3 is white.  From there, it transitions to
+a darkish red for the largest moku loss in the game.
 
+If you are lucky enough to see negative values (gains!) in this  table, they might be so dark a blue you can't read the
+text.  Stop playing better than KataGo.
+
+This section combined with the ten worst mistakes section below tends to explain why one player beat another.
+
+#### Bottom section: ten worst mistakes
+This section shows the ten largest moku losses each player made during the game.  They are sorted in descending order.
+
+You can likely learn a lot by studying just these ten moves from every game.  It depends, though; there are many games
+where both players miss something really big for tens of moves in a row.  This results in the mistake distribution
+getting skewed badly, and the analysis as a whole pointing at what is effectively one mistake.
+
+The ten worst mistakes are color-coded on the same scale as the loss distribution section so the same number will be
+colored the same way in both.
+
+This section combined with the loss distribution section above tends to explain why one player beat another.
+
+### Expected Result graph with ten worst timeline
+These three graphs showed how the game swayed back and forth between the two players over the course of the game.  Each
+of these graphs uses the same _x_-axis scale, using the move numbers as their values.  0 is the initial position.
+
+The middle graph shows the game's expected result after each move.  A positive value indicates Black is leading, while a
+negative value indicates that White is.  Naturally, the line bounces up and down as each player makes mistakes of
+different magnitudes.
+
+The top and bottom graphs show when each player played their ten worst mistakes.  The height of the bars show
+comparatively how large each of these mistakes were.  The label on the bar attempts to show the last one or two digits
+of the move number.  I never show hundreds on these to lessen overlap.
+
+### Mistake Distribution plot
+This plot shows two different representations of the data already presented in the Statistics table's loss distribution
+section.  The first is a histogram representation, bucketing the loss values in increments of a quarter moku.  It uses
+the left _y_-axis, `Proportion of Moves`, to indicate what ratio of the players' moves fell into that bucket.
+
+The second representation is a Gaussian
+[kernel density estimation](https://en.wikipedia.org/wiki/Kernel_density_estimation) of the players' performances.  The
+very simple explanation is that this plot is trying to find underlying shapes of the distribution.  You can easily
+ignore this if you do not know what KDE is or do not care.  I find looking for different subpopulations of mistakes
+enlightening sometimes.
+
+### Methodology
+This version is GPQ's third incarnation.  This section details only version 3.
+
+1. I collected over 1,000 games across a broad range of skill levels.  I have the AlphaGo Master games, professional
+   games, amateur dan games, SDK games (primarily from my Thousand Nights of Go series at
+   [Twitch](https://twitch.tv/sadakatsu)), DDK, and some AI games (some of which were artificially bad to try to plumb
+   the depths).
+2. I analyzed all these games using KataGo version 1.10 using CUDA 11.2 and the old 20 block, 256 channel network linked
+   above.
+3. I clustered the performances using the Mann-Whitney-U test with _p_ ≤ 0.025 and Pareto non-dominated sorting.
+4. I transformed the performances into a massive feature vector to capture a performance's loss distribution.
+5. I used Principal Component Analysis to center the feature vectors and reduce the number of dimensions.
+6. I used Linear Discriminant Analysis to further reduce the dimensions based upon the clusters determined in Step 3.
+7. I used Multiple Regression to find the vector along with the clusters are distributed.
+8. I projected all my performances onto this vector.
+9. I found the 5th and 95th percentiles of my performance data.  The 5th was defined as the Quality Score 100, the 95th
+   as Quality Score 0.
+10. I exported the parameters to be loaded and reused so that new performances can be scored along this same vector.

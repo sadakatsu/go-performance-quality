@@ -9,8 +9,7 @@ def render_table(
     black_name,
     white_name,
     winner,
-    black_quality,
-    white_quality,
+    scored_performances,
     black_summary,
     white_summary
 ) -> ImageData:
@@ -36,12 +35,13 @@ def render_table(
     mako_template = Template(_template)
     html = mako_template.render(
         black_name=black_name,
-        black_quality=black_quality,
+        black_quality=scored_performances['B'],
         black_result=black_result,
         black_result_class=black_result_class,
         black_summary=black_summary,
+        game_quality=scored_performances['Game'],
         white_name=white_name,
-        white_quality=white_quality,
+        white_quality=scored_performances['W'],
         white_result=white_result,
         white_result_class=white_result_class,
         white_summary=white_summary
@@ -115,37 +115,27 @@ def create_gradient_function(minimum, minimum_color, middle, middle_color, maxim
     return generated
 
 determine_quality_style = create_gradient_function(
-    -10,
-    (248, 105, 107),
     0,
+    (248, 105, 107),
+    50,
     (255, 235, 132),
-    10,
+    100,
     (99, 190, 123)
 )
 
 determine_moves_style = create_gradient_function(
-    8,
+    17,
     (248, 105, 107),
-    107,
+    95,
     (255, 255, 255),
-    239,
+    174,
     (99, 190, 123)
 )
-
-# This MIGHT be useful?  I think using p(Mistake) to style Mistakes makes more sense.
-# determine_mistakes_style = create_gradient_function(
-#     0,
-#     (99, 190, 123),
-#     72,
-#     (255, 235, 132),
-#     168,
-#     (248, 105, 107),
-# )
 
 determine_p_mistake_style = create_gradient_function(
     0,
     (99, 190, 123),
-    0.67,
+    0.519,
     (255, 235, 132),
     1,
     (248, 105, 107),
@@ -154,27 +144,27 @@ determine_p_mistake_style = create_gradient_function(
 determine_loss_total_style = create_gradient_function(
     0,
     (99, 190, 123),
-    297,
+    187,
     (255, 235, 132),
-    1064,
+    634,
     (248, 105, 107),
 )
 
 determine_loss_mean_style = create_gradient_function(
     0,
     (99, 190, 123),
-    2.76,
+    2.056,
     (255, 235, 132),
-    9.29,
+    6.392,
     (248, 105, 107),
 )
 
 determine_loss_std_dev_style = create_gradient_function(
     0,
     (99, 190, 123),
-    4.15,
+    3.163,
     (255, 235, 132),
-    14.76,
+    9.207,
     (248, 105, 107),
 )
 %>
@@ -245,6 +235,11 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
                 background-color: #ffcc33
             }
             
+            .overall-callout {
+                border-bottom: 1px solid black;
+                border-top: 1px solid black;
+            }
+            
             .void {
                 background-color: rgba(0, 0, 0, 0);
                 border: 0px solid black !important;
@@ -280,13 +275,19 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
                     <td class="${black_result_class} middle">${black_result}</td>
                     <td class="${white_result_class}">${white_result}</td>
                 </tr>
+                <tr class="overall-callout">
+                    <td class="label">Game Quality</td>
+                    <td class="middle" colspan="2" style="${determine_quality_style(game_quality)}">
+                        ${print_neat_float(game_quality)}
+                    </td>
+                </tr>
                 <tr>
-                    <td class="label">Quality</td>
+                    <td class="label">Play Quality</td>
                     <td class="middle" style="${determine_quality_style(black_quality)}">
-                        ${black_quality}
+                        ${print_neat_float(black_quality)}
                     </td>
                     <td style="${determine_quality_style(white_quality)}">
-                        ${white_quality}
+                        ${print_neat_float(white_quality)}
                     </td>
                 </tr>
                 <tr>

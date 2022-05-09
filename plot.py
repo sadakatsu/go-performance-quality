@@ -10,7 +10,7 @@ from fontTools.ttLib import TTFont
 from matplotlib.ticker import MultipleLocator
 
 from common import get_filename_core, ImageData
-from load_statistics import get_expected_result, load_performances, get_worst_moves
+from load_statistics import get_expected_result, load_performances, get_worst_moves, load_performances_new
 from matplotlib import rcParams
 
 from kde import generate_density_estimation
@@ -35,7 +35,8 @@ def plot_distributions(
     height = round(width * 3. / 4)
     size = (width, height)
 
-    performances = load_performances(analysis_filename, use_rounded=False)
+    # performances = load_performances(analysis_filename, use_rounded=False)
+    performances = load_performances_new(analysis_filename)
     minimum = _get_safe_minimum(performances)
     maximum = _get_safe_maximum(performances)
 
@@ -189,16 +190,12 @@ def _char_in_font(character, font):
 
 
 def _get_performance(performances, color: str):
-    return [x[2] for x in performances if x[1] == color][0]
+    return performances[color]
 
 
 def _get_safe_minimum(performances):
-    a = np.min(performances[0][2])
-    b = np.min(performances[1][2])
-    return np.floor(min(a, b))
+    return np.floor(np.min(performances['Game']))
 
 
 def _get_safe_maximum(performances):
-    a = np.max(performances[0][2])
-    b = np.max(performances[1][2])
-    return np.ceil(max(a, b))
+    return np.floor(np.max(performances['Game']))

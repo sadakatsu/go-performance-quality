@@ -8,6 +8,20 @@ import re
 import sys
 
 
+def load_performances_new(analysis_filename: str) -> dict:
+    loaded = load(analysis_filename)
+    if not loaded:
+        print(f'Failed to load {analysis_filename}')
+        sys.exit(4)
+    date, game_name, dataframe = loaded
+
+    return {
+        'Game': dataframe['Delta'].to_numpy(),
+        'B': dataframe[dataframe['Player'] == 'B']['Delta'].to_numpy(),
+        'W': dataframe[dataframe['Player'] == 'W']['Delta'].to_numpy()
+    }
+
+
 def load_performances(analysis_filename, use_rounded=True, minimum_moves=21):
     performances = []
 
