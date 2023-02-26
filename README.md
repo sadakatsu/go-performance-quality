@@ -139,8 +139,7 @@ I discourage using Quality scores for the following purposes:
 5. Install some form on Anaconda.  I use [miniconda](https://docs.conda.io/en/latest/miniconda.html), so I will write my
    guide for it.
 6. Clone this repository, then navigate into that directory.
-7. Build a new Python environment, installing this program's dependencies: `conda create -n goperformance
-   requirements.txt`
+7. Build a new Python environment, installing this program's dependencies: `conda env create -f environment.yml`
 8. Modify `configuration/application.yaml` so the `katago` subproperties are correct.  You may also want to change your
    `analysisThreads` value.  If you have a powerful, tensor-core equipped GPU, and you tend to analyze longer games,
    bumping your analysis threads to 32 can get you better throughput.  If you don't have a recent graphics card or use

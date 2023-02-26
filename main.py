@@ -231,6 +231,12 @@ def load_sgf(sgf):
     print('Parsing SGF succeeded.')
 
     root = main_variation[0]
+
+    if not isinstance(root['PB'], str):
+        root['PB'] = str(root['PB'])
+    if not isinstance(root['PW'], str):
+        root['PW'] = str(root['PW'])
+
     black_name = root['PB']
     white_name = root['PW']
     result = root['RE']
@@ -516,7 +522,14 @@ def get_komi(root: dict, ruleset: Ruleset) -> float:
 
 
 def get_handicap_stones(root: dict) -> Set[Coordinate]:
-    return {Coordinate[c] for c in root['AB']} if 'AB' in root else set()
+    if 'AB' in root:
+        found = root['AB']
+        if isinstance(found, str):
+            found = [found]
+        handicap_stones = {Coordinate[c] for c in found}
+    else:
+        handicap_stones = set()
+    return handicap_stones
 
 
 def save_analysis(analysis_filename: str, analysis: List[Dict]):
