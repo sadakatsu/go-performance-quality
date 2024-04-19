@@ -74,7 +74,7 @@ class KataGo:
 
     def write_message(self, message):
         if self.output:
-            print(f'  KataGo::write_message() called...')
+            print('  KataGo::write_message() called...')
         if not self._ready:
             raise Exception('KataGo is not ready!  Learn some damn patience.')
         command = json.dumps(message, separators=(',', ':')) + os.linesep
