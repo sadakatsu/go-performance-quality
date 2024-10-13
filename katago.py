@@ -8,6 +8,7 @@ import subprocess
 
 from enum import auto, Enum
 from threading import Thread
+from security import safe_command
 
 
 class LineType(Enum):
@@ -45,8 +46,7 @@ class KataGo:
 
         command = f'{executable} analysis -config {configuration} -model {model} -analysis-threads {analysis_threads} ' \
                   f'-override-config numSearchThreads={search_threads}'
-        self._process = subprocess.Popen(
-            command,
+        self._process = safe_command.run(subprocess.Popen, command,
             stderr=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE
