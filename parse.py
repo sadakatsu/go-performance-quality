@@ -178,13 +178,16 @@ class Placeholder:
         return self.parser(text, index, depth)
 
 
+board_size = 19
+
+
 def translate_sgf_coord(coord):
     uppercase = coord.upper()
     if uppercase == 'TT':
         return ()
     first, second = uppercase
     column = first if first < 'I' else f'{chr(ord(first) + 1)}'
-    row = ord("A") + 19 - ord(second)
+    row = ord("A") + board_size - ord(second)
     return f'{column}{row}'
 
 
@@ -261,6 +264,8 @@ parse_property = build_transform(
 
 
 def construct_node(properties):
+    global board_size
+
     node = {}
     if properties:
         if not isinstance(properties, list):
@@ -269,6 +274,7 @@ def construct_node(properties):
             identifier = prop['identifier']
             if identifier in (
                 'AB',
+                'AW',
                 'B',
                 'BR',
                 'BT',
@@ -292,7 +298,13 @@ def construct_node(properties):
                 'WR',
                 'WT'
             ):
-                node[identifier] = prop['value']
+                value = prop['value']
+                node[identifier] = value
+
+                # I am now permitting other board sizes.  I need to be able to translate coordinates based upon the
+                # SZ (size) node.  This results in context-based parsing, but... oh well?
+                if identifier == 'SZ':
+                    board_size = int(value)
     return node
 
 
@@ -419,22 +431,22 @@ def transform_sgf_to_command(main_variation, convert=True):
     elif 'FF' in setup_node and setup_node['FF'] != 4:
         raise Exception('Wrong format')
     # elif 'SZ' not in setup_node or setup_node['SZ'] != 19:
-    elif 'SZ' in setup_node and setup_node['SZ'] != 19:
-        raise Exception('Wrong size')
+    # elif 'SZ' in setup_node and setup_node['SZ'] != 19:
+    #    raise Exception('Wrong size')
     elif 'HA' in setup_node and (setup_node['HA'] < 0 or setup_node['HA'] > 9):
         raise Exception('Wrong handicap')
     elif 'RU' in setup_node and setup_node['RU'].lower() not in (
-            'aga',
-            'aga-button',
-            'bga',
-            'chinese',
-            'chinese-kgs',
-            'chinese-ogs',
-            'japanese',
-            'korean',
-            'new-zealand',
-            'stone-scoring',
-            'tromp-taylor'
+        'aga',
+        'aga-button',
+        'bga',
+        'chinese',
+        'chinese-kgs',
+        'chinese-ogs',
+        'japanese',
+        'korean',
+        'new-zealand',
+        'stone-scoring',
+        'tromp-taylor'
     ):
         raise Exception('Wrong rule set')
 
@@ -459,6 +471,14 @@ def transform_sgf_to_command(main_variation, convert=True):
         if not isinstance(placements, list):
             placements = [placements]
         output['initialStones'] = [['B', x] for x in placements]
+
+    if 'AW' in setup_node:
+        placements = setup_node['AW']
+        if not isinstance(placements, list):
+            placements = [placements]
+        if 'initialStones' not in output:
+            output['initialStones'] = []
+        output['initialStones'] += [['W', x] for x in placements]
 
     if 'HA' in setup_node:
         handicap = setup_node['HA']

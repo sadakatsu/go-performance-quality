@@ -34,16 +34,25 @@ def render_table(
 
     mako_template = Template(_template)
     html = mako_template.render(
+        black_accuracy=black_summary['accuracy'],
+        black_best=black_summary['best_move'],
+        black_match=black_summary['match'],
         black_name=black_name,
-        black_quality=scored_performances['B'],
+        black_quality=scored_performances['B']['actual'],
         black_result=black_result,
         black_result_class=black_result_class,
+        black_simplicity=scored_performances['B']['expected'],
         black_summary=black_summary,
-        game_quality=scored_performances['Game'],
+        game_quality=scored_performances['Game']['actual'],
+        game_simplicity=scored_performances['Game']['expected'],
+        white_accuracy=white_summary['accuracy'],
+        white_best=white_summary['best_move'],
+        white_match=white_summary['match'],
         white_name=white_name,
-        white_quality=scored_performances['W'],
+        white_quality=scored_performances['W']['actual'],
         white_result=white_result,
         white_result_class=white_result_class,
+        white_simplicity=scored_performances['W']['expected'],
         white_summary=white_summary
     )
 
@@ -174,6 +183,9 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
 <%def name="print_neat_float(x)">
     ${f'{x:0.3f}'}
 </%def>
+<%def name="print_neat_percentage(x)">
+    ${f'{x*100:0.1f}%'}
+</%def>
 
 <!DOCTYPE html>
 <html>
@@ -240,6 +252,10 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
                 border-top: 1px solid black;
             }
             
+            .split {
+                border-bottom: 1px solid black;
+            }
+            
             .void {
                 background-color: rgba(0, 0, 0, 0);
                 border: 0px solid black !important;
@@ -270,15 +286,21 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
                 </tr>
             </thead>
             <tbody>
-                <tr>
+                <tr class="split">
                     <td class="label">Result</td>
                     <td class="${black_result_class} middle">${black_result}</td>
                     <td class="${white_result_class}">${white_result}</td>
                 </tr>
-                <tr class="overall-callout">
+                <tr>
                     <td class="label">Game Quality</td>
                     <td class="middle" colspan="2" style="${determine_quality_style(game_quality)}">
                         ${print_neat_float(game_quality)}
+                    </td>
+                </tr>
+                <tr class="split">
+                    <td class="label">Game Simplicity</td>
+                    <td class="middle" colspan="2" style="${determine_quality_style(game_simplicity)}">
+                        ${print_neat_float(game_simplicity)}
                     </td>
                 </tr>
                 <tr>
@@ -290,6 +312,47 @@ maximum = max(np.max(black_summary['timeline']), np.max(white_summary['timeline'
                         ${print_neat_float(white_quality)}
                     </td>
                 </tr>
+                <tr>
+                    <td class="label">Simplicity</td>
+                    <td class="middle" style="${determine_quality_style(black_simplicity)}">
+                        ${print_neat_float(black_simplicity)}
+                    </td>
+                    <td style="${determine_quality_style(white_simplicity)}">
+                        ${print_neat_float(white_simplicity)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td class="label">Accuracy</td>
+                    <td class="middle" style="${determine_quality_style(black_accuracy*100)}">
+                        ${print_neat_percentage(black_accuracy)}
+                    </td>
+                    <td style="${determine_quality_style(white_accuracy*100)}">
+                        ${print_neat_percentage(white_accuracy)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td class="label">Best Move %</td>
+                    <td class="middle" style="${determine_quality_style(black_best*100)}">
+                        ${print_neat_percentage(black_best)}
+                    </td>
+                    <td style="${determine_quality_style(white_best*100)}">
+                        ${print_neat_percentage(white_best)}
+                    </td>
+                </tr>
+                
+                <tr class="split">
+                    <td class="label">Match %</td>
+                    <td class="middle" style="${determine_quality_style(black_match*100)}">
+                        ${print_neat_percentage(black_match)}
+                    </td>
+                    <td style="${determine_quality_style(white_match*100)}">
+                        ${print_neat_percentage(white_match)}
+                    </td>
+                </tr>
+                
+                
                 <tr>
                     <td class="label">Moves</td>
                     <td class="middle" style="${determine_moves_style(black_summary['moves'])}">

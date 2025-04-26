@@ -1,7 +1,8 @@
 # © 2021 Joseph Craig <the.sadakatsu@gmail.com>
 # This code is not released under a standard OSS license.  Please read README.md.
-import csv
 import json
+import traceback
+from multiprocessing import Pool
 
 import dateparser
 import numpy as np
@@ -32,6 +33,7 @@ from typing import Callable, Optional, List, Dict, Set
 from plot import plot_distributions
 from render import render_table
 
+EPSILON = np.finfo(float).eps
 MAX_MISTAKE = 361. * 2.
 MIDDLE = MAX_MISTAKE * 4.
 BUCKETS = int(MAX_MISTAKE * 8 + 1)
@@ -107,15 +109,19 @@ def run(sgf_filename):
     configuration = load_configuration()
     prep_katago(configuration['katago'])
     procedure = ScoringProcedure(configuration['transformation_parameters'])
-    game, black_name, white_name, winner = load_sgf(sgf_filename)
-    analysis_filename = get_or_create_analysis_file(sgf_filename, configuration['analyses_directory'], game)
+    game, black_name, white_name, size, winner = load_sgf(sgf_filename)
+    analysis_filename = get_or_create_analysis_file(sgf_filename, configuration, game)
     original_performances = load_performances_new(analysis_filename)
-    scored_performances = {k: procedure.score(v)[0] for k, v in original_performances.items()}
+
+    scored_performances = {
+        k1: {k2: procedure.score(v2)[0] for k2, v2 in v1.items()} for k1, v1 in original_performances.items()
+    }
+
     summary = summarize(analysis_filename)
 
-    print(f'\nOverall Quality: {scored_performances["Game"]:0.3f}')
-    print(f'{black_name} (B)\'s Quality: {scored_performances["B"]:0.3f}')
-    print(f'{white_name} (W)\'s Quality: {scored_performances["W"]:0.3f}\n')
+    print(f'\nOverall Quality: {scored_performances["Game"]["actual"]:0.3f}')
+    print(f'{black_name} (B)\'s Quality: {scored_performances["B"]["actual"]:0.3f}')
+    print(f'{white_name} (W)\'s Quality: {scored_performances["W"]["actual"]:0.3f}\n')
 
 
     print('Rendering performance table...')
@@ -134,6 +140,7 @@ def run(sgf_filename):
     kifu = print_kifu(
         configuration['kifu_directory'],
         analysis_filename,
+        size,
         game,
         performance_table.height
     )
@@ -212,7 +219,9 @@ def prep_katago(katago_configuration: dict):
                 katago_configuration['configuration'],
                 katago_configuration['model'],
                 analysis_threads=katago_configuration['analysis_threads'],
-                search_threads=katago_configuration['search_threads']
+                search_threads=katago_configuration['search_threads'],
+                max_playouts=katago_configuration['max_playouts'],
+                max_visits=katago_configuration['max_visits'],
             )
             while not katago.ready:
                 time.sleep(0.001)
@@ -240,6 +249,7 @@ def load_sgf(sgf):
     black_name = root['PB']
     white_name = root['PW']
     result = root['RE']
+    size = root['SZ'] if 'SZ' in root else 19
     if result.startswith('B+'):
         winner = 'B'
     elif result.startswith('W+'):
@@ -247,16 +257,58 @@ def load_sgf(sgf):
     else:
         winner = None
 
-    return main_variation, black_name, white_name, winner
+    return main_variation, black_name, white_name, size, winner
 
 
-def get_or_create_analysis_file(sgf_filename, analyses_directory, game):
+required_headers = {
+    'Move',
+    'Player',
+    'Prior Lead',
+    'Posterior Lead',
+    'Loss',
+    'Prior Win Rate',
+    'Posterior Win Rate',
+    'Drop',
+    'Played',
+    'Played Search',
+    'Best',
+    'Best Search',
+    'Counts as Best',
+    'Counts as Match',
+    'Expected Loss'
+}
+
+
+def get_or_create_analysis_file(sgf_filename, configuration, game):
     base_name = get_base_filename(sgf_filename)
+
+    # We can reuse a previously generated analysis if the CSV file exists and it captures the data necessary for this
+    # GPQ version.
+    needs_analysis = True
+    analyses_directory = configuration['analyses_directory']
     analysis_filename = find_existing_analysis(base_name, analyses_directory)
     if analysis_filename:
         print(f'Found {analysis_filename} .')
-    else:
-        analysis_filename = perform_analysis(sgf_filename, game, base_name, analyses_directory)
+        headers = set(pd.read_csv(analysis_filename, index_col=False, nrows=0).columns.to_list())
+
+        needs_analysis = False
+        for required_header in required_headers:
+            if required_header not in headers:
+                print(f'Missing required header "{required_header}".  Rerunning analysis to generate up-to-date file.')
+                needs_analysis = True
+                break
+
+    # Run the analysis only if it is needed.
+    if needs_analysis:
+        analysis_filename = perform_analysis(
+            sgf_filename,
+            game,
+            base_name,
+            analyses_directory,
+            configuration
+        )
+
+    # Return the analysis filename.
     return analysis_filename
 
 
@@ -265,7 +317,7 @@ def get_base_filename(file):
     index = filename.rfind('.')
     if index != -1:
         filename = filename[:index]
-    return re.sub(r'\s+', '_', filename)
+    return re.sub(r'[^\w.-]+', '_', filename)
 
 
 def find_existing_analysis(base_name, analyses_directory):
@@ -276,7 +328,13 @@ def find_existing_analysis(base_name, analyses_directory):
     return haystack[0] if haystack else None
 
 
-def perform_analysis(sgf_filename, game, base_name, analyses_directory):
+def perform_analysis(
+    sgf_filename,
+    game,
+    base_name,
+    analyses_directory,
+    configuration: Dict
+):
     global katago
 
     analysis_date = get_analysis_date(sgf_filename, game)
@@ -288,7 +346,7 @@ def perform_analysis(sgf_filename, game, base_name, analyses_directory):
 
     start = time.time()
     katago.write_message(command)
-    analysis = compose_analysis(initial_player, positions, start, game)
+    analysis = compose_analysis(initial_player, positions, start, game, configuration)
     elapsed = time.time() - start
     print(
         f'Game reviewed in {elapsed:0.3f} seconds ({elapsed / positions:0.3f} seconds per position).'
@@ -343,14 +401,34 @@ def build_analysis_filename(analyses_directory, game, base_name, analysis_date):
     if black_rank:
         path += f'-{black_rank}'
     path += f'__{base_name}.csv'
-    path = re.sub(r'\s+', '_', path)
+    path = re.sub(r'[^\w.\- ]+', '_', path)
 
     print('DEBUG: path is', path)
 
     return f'{analyses_directory}/{path}'
 
 
-def compose_analysis(first_player: str, move_count: int, start: float, sgf: List[Dict]) -> List[Dict]:
+def map_move_to_identicals(index, current_state: Game):
+    move_to_code = {}
+    code_to_moves = {}
+    for move in current_state.legal_moves:
+        code = current_state.play(move).canonical_code
+        move_to_code[move] = code
+        if code in code_to_moves:
+            code_to_moves[code].add(move)
+        else:
+            code_to_moves[code] = {move}
+    print('.', end='')
+    return {move: code_to_moves[code] for move, code in move_to_code.items()}
+
+
+def compose_analysis(
+    first_player: str,
+    move_count: int,
+    start: float,
+    sgf: List[Dict],
+    configuration: Dict
+) -> List[Dict]:
     # Prepare a state to update with analysis results.
     states = play_through_sgf(sgf)
     second_player = 'W' if first_player == 'B' else 'B'
@@ -358,16 +436,39 @@ def compose_analysis(first_player: str, move_count: int, start: float, sgf: List
         {
             'move': i + 1,
             'player': first_player if i % 2 == 0 else second_player,
-            'before': 0.,
-            'after': 0.,
-            'delta': 0.,
+            'prior lead': 0.,
+            'posterior lead': 0.,
+            'loss': 0.,
+            'prior win rate': 0.,
+            'posterior win rate': 0.,
+            'drop': 0.,
             'played': 'pass' if states[i + 1].previous_move == Pass.PASS else states[i + 1].previous_move.name,
-            'best': None
+            'best': None,
+            'played search': 0,
+            'best search': 0,
+            'counts as best': 0,
+            'counts as match': 0,
+            'expected loss': 0.,
         }
         for i in range(move_count - 1)
     ]
     done = 0
     line = None
+
+    lead_drop = configuration['accuracy']['lead_drop']
+    max_visit_ratio = configuration['accuracy']['max_visit_ratio']
+    top_moves = configuration['accuracy']['top_moves'] - 1  # order starts at zero
+    winrate_drop = configuration['accuracy']['winrate_drop']
+
+    # First, generate all the transformational invariance information for each game state.  My Go domain library is very
+    # slow in Python.  Having all this information preprocessed using multithreading should rapidly accelerate the
+    # analysis, especially on moderately powerful CPUs.
+    print('Processing transformationally identical moves across whole game history...')
+    pool = Pool(min(configuration['threads'], len(states)))
+    history_move_to_identicals = pool.starmap(map_move_to_identicals, enumerate(states))
+    print()
+    elapsed = time.time() - start
+    print(f'Processed in {elapsed:0.3f} s.')
 
     # Use each evaluation line KataGo generates to update the analysis state.
     try:
@@ -383,14 +484,122 @@ def compose_analysis(first_player: str, move_count: int, start: float, sgf: List
 
             output = json.loads(line.rstrip())
             turn = output['turnNumber']
-            value = output['moveInfos'][0]['scoreLead']
 
+            # DEBUG
+            if turn + 1 < move_count:
+                analysis[turn]['raw'] = {
+                    'turnNumber': turn,
+                    'rootInfo': {
+                        'currentPlayer': output['rootInfo']['currentPlayer'],
+                        'visits': output['rootInfo']['visits'],
+                    },
+                    'policy': output['policy'],
+                    'moveInfos': [
+                        {
+                            'isSymmetryOf': x['isSymmetryOf'] if 'isSymmetryOf' in x else None,
+                            'move': x['move'],
+                            'order': x['order'],
+                            'prior': x['prior'],
+                            'scoreLead': x['scoreLead'],
+                            'visits': x['visits'],
+                            'winrate': x['winrate'],
+                        } for x in output['moveInfos']
+                    ]
+                }
+
+                best_score = output['moveInfos'][0]['scoreLead']
+                expected_loss = 0.
+                for m in output['moveInfos']:
+                    prior = m['prior']
+                    loss = best_score - m['scoreLead']
+                    expected_loss += prior * loss
+                analysis[turn]['expected loss'] = expected_loss
+            # END DEBUG
+
+            move_to_identicals = history_move_to_identicals[turn]
+
+            # Treat transformationally identical moves as being the same by keeping only the most searched branch
+            # for each set.
+            kept = {}
+            for move_info in output['moveInfos']:
+                move_label = move_info['move']
+                move = Coordinate[move_label] if move_label != 'pass' else Pass.PASS
+                visits = move_info['visits']
+                if move not in kept or kept[move]['visits'] < visits:
+                    for m in move_to_identicals[move]:
+                        kept[m] = move_info
+
+            # Build the simplified list of moves using this mapping.
+            seen = set()
+            kept_list = []
+            for move, move_info in kept.items():
+                if move_info['move'] not in seen:
+                    seen.add(move_info['move'])
+                    kept_list.append(move_info)
+            kept_list = sorted(kept_list, key=lambda m: m['order'])
+
+            # Relabel all the order values in the move infos.  This gives us control over whether to consider moves
+            # as equivalent.
+            order = -1
+            previous = None
+            threshold = np.floor(kept_list[0]['visits'] * max_visit_ratio)
+            for index, move_info in enumerate(kept_list):
+                if (
+                    previous is None or
+                    move_info['visits'] < threshold or
+                    move_info['winrate'] + winrate_drop - EPSILON < previous['winrate'] or
+                    move_info['scoreLead'] + lead_drop - EPSILON < previous['scoreLead']
+                ):
+                    order = index
+                    previous = move_info
+                move_info['order'] = order
+
+            # Capture the data needed for tracking Accuracy, Match %, and Best Move %.
             if turn + 1 < move_count:
                 current = analysis[turn]
-                current['before'] = value
+                current['best search'] = kept_list[0]['visits']
+
+                played_move = states[turn + 1].previous_move
+                if played_move in kept:
+                    played_move_info = kept[played_move]
+                    current['played search'] = played_move_info['visits']
+
+                    identical_to_played = move_to_identicals[played_move]
+                    counts_as_best = 0
+                    counts_as_match = 0
+                    for move_info in kept_list:
+                        order = move_info['order']
+                        if order > top_moves:
+                            break
+
+                        visits = move_info['visits']
+                        if visits < threshold:
+                            continue
+
+                        move = Pass.PASS if move_info['move'] == 'pass' else Coordinate[move_info['move']]
+                        if move in identical_to_played:
+                            counts_as_match = 1
+                            if order == 0:
+                                counts_as_best = 1
+                            break
+                    current['counts as best'] = counts_as_best
+                    current['counts as match'] = counts_as_match
+                else:
+                    current['played search'] = 0
+                    current['counts as best'] = 0
+                    current['counts as match'] = 0
+
+            # Perform the rest of the GPQ logic (most of which was written before I bothered to comment anything).
+            lead = kept_list[0]['scoreLead']
+            winrate = kept_list[0]['winrate']
+
+            if turn + 1 < move_count:
+                current['prior lead'] = lead
+                current['prior win rate'] = winrate
                 current['best'] = output['moveInfos'][0]['move']
             if turn > 0:
-                analysis[turn - 1]['after'] = -value
+                analysis[turn - 1]['posterior lead'] = -lead
+                analysis[turn - 1]['posterior win rate'] = 1. - winrate
             done += 1
 
             elapsed = time.time() - start
@@ -398,8 +607,10 @@ def compose_analysis(first_player: str, move_count: int, start: float, sgf: List
                 f'{done} positions analyzed.  Turn {turn} completed; {elapsed:0.3f} seconds elapsed; '
                 f'{elapsed / done:0.3f} SPP.'
             )
+
     except Exception as e:
         print(f'An exception occurred:\n  {e}\n  {line}')
+        traceback.print_exc(file=sys.stdout)
         exit(3)
 
     print('All positions analyzed, compositing analysis...')
@@ -421,13 +632,18 @@ def compose_analysis(first_player: str, move_count: int, start: float, sgf: List
             entry['played'] == entry['best'] or
             actual_state.board.canonical_code == previous_state.play(best_move).canonical_code
         ):
-            entry['before'] = entry['after']
-            entry['delta'] = 0
+            entry['prior lead'] = entry['posterior lead']
+            entry['loss'] = 0
+            entry['prior win rate'] = entry['posterior win rate']
+            entry['drop'] = 0
             if i > 0:
-                analysis[i - 1]['after'] = -entry['after']
+                analysis[i - 1]['posterior lead'] = -entry['posterior lead']
+                analysis[i - 1]['posterior win rate'] = 1. - entry['posterior win rate']
         else:
-            delta = entry['before'] - entry['after']
-            entry['delta'] = delta
+            loss = entry['prior lead'] - entry['posterior lead']
+            entry['loss'] = loss
+            drop = entry['prior win rate'] - entry['posterior win rate']
+            entry['drop'] = drop
 
     print('Analysis complete.')
 
@@ -440,6 +656,8 @@ def play_through_sgf(sgf: List[Dict]) -> List[Game]:
     komi = get_komi(root, ruleset)
     handicap_stones = get_handicap_stones(root)
 
+    # TODO: Revise this code to support initial positions other than just handicap stones.  Fox "tests" new accounts by
+    #  throwing them into a populated board at the start of the middle game.
     game = Game(ruleset=ruleset, komi=komi, handicap_stones=handicap_stones)
     states = [game]
     for node in sgf:
@@ -536,18 +754,30 @@ def save_analysis(analysis_filename: str, analysis: List[Dict]):
     print(f'Writing analysis to {analysis_filename}...')
 
     with open(analysis_filename, 'w', encoding='utf-8') as csvfile:
-        csvfile.write('Move,Player,Before,After,Delta,Played,Best\n')
+        csvfile.write(
+            'Move,Player,Prior Lead,Posterior Lead,Loss,Prior Win Rate,Posterior Win Rate,Drop,Played,Played Search,'
+            'Best,Best Search,Counts as Best,Counts as Match,Expected Loss,Raw\n'
+        )
         for entry in analysis:
             csvfile.write(
                 ','.join(
                     [
                         str(entry['move']),
                         entry['player'],
-                        str(entry['before']),
-                        str(entry['after']),
-                        str(entry['delta']),
+                        str(entry['prior lead']),
+                        str(entry['posterior lead']),
+                        str(entry['loss']),
+                        str(entry['prior win rate']),
+                        str(entry['posterior win rate']),
+                        str(entry['drop']),
                         str(entry['played']),
-                        str(entry['best'])
+                        str(entry['played search']),
+                        str(entry['best']),
+                        str(entry['best search']),
+                        str(entry['counts as best']),
+                        str(entry['counts as match']),
+                        str(entry['expected loss']),
+                        f'''"{json.dumps(entry['raw']).replace('"', '""')}"''',
                     ]
                 ) +
                 '\n'
@@ -558,20 +788,25 @@ def save_analysis(analysis_filename: str, analysis: List[Dict]):
 
 def summarize(analysis_filename: str) -> dict:
     dataframe = pd.read_csv(analysis_filename)
+    dataframe['Search'] = dataframe[['Played Search', 'Best Search']].min(axis=1)
 
     statistics = dict()
     for key in ('B', 'W'):
         indices = dataframe['Player'] == key
         player_rows = dataframe[indices]
-        deltas = player_rows['Delta'].to_numpy()
-        mistakes = np.array([int(round(d)) for d in deltas])
+        losses = player_rows['Loss'].to_numpy()
+        mistakes = np.array([int(round(d)) for d in losses])
 
         moves = len(mistakes)
         mistake_count = np.sum(mistakes >= 1)
         p_mistake = float(mistake_count) / moves
         loss_total = np.sum(mistakes)
         loss_mean = loss_total / moves
-        loss_std_dev = np.std(deltas)
+        loss_std_dev = np.std(losses)
+
+        accuracy = player_rows['Search'].sum() / player_rows['Best Search'].sum()
+        best_move = player_rows['Counts as Best'].mean()
+        match = player_rows['Counts as Match'].mean()
 
         statistics[key] = {
             'moves': moves,
@@ -580,7 +815,10 @@ def summarize(analysis_filename: str) -> dict:
             'loss_total': int(loss_total),
             'loss_mean': loss_mean,
             'loss_std_dev': loss_std_dev,
-            'timeline': mistakes
+            'timeline': mistakes,
+            'accuracy': accuracy,
+            'best_move': best_move,
+            'match': match,
         }
 
     return statistics

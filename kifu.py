@@ -8,6 +8,7 @@ from common import get_filename_core, render_html, ImageData
 def print_kifu(
     kifu_directory: str,
     analysis_filename: str,
+    size: int,
     game,
     height
 ) -> ImageData:
@@ -15,28 +16,28 @@ def print_kifu(
     kifu_filename = f'{kifu_directory}/{filename_core}.png'
 
     overlaps = []
-    rows = [[None for x in range(19)] for y in range(19)]
+    rows = [[None for x in range(size)] for y in range(size)]
     for move_number, node in enumerate(game):
         if 'AB' in node:
             # OGS -_-
             if not isinstance(node['AB'], list):
                 node['AB'] = [node['AB']]
             for label in node['AB']:
-                x, y = _convert_coordinate_to_index(label)
+                x, y = _convert_coordinate_to_index(label, size)
                 rows[y][x] = 'B', None
         if 'AW' in node:
             # OGS -_-
             if not isinstance(node['AW'], list):
                 node['AW'] = [node['AW']]
             for label in node['AW']:
-                x, y = _convert_coordinate_to_index(label)
+                x, y = _convert_coordinate_to_index(label, size)
                 rows[y][x] = 'W', None
         if 'B' in node:
             label = node['B']
             if not label:
                 overlaps.append(('B', move_number, 'pass'))
             else:
-                x, y = _convert_coordinate_to_index(label)
+                x, y = _convert_coordinate_to_index(label, size)
                 if rows[y][x]:
                     overlaps.append(('B', move_number, label))
                 else:
@@ -46,7 +47,7 @@ def print_kifu(
             if not label:
                 overlaps.append(('W', move_number, 'pass'))
             else:
-                x, y = _convert_coordinate_to_index(label)
+                x, y = _convert_coordinate_to_index(label, size)
                 if rows[y][x]:
                     overlaps.append(('W', move_number, label))
                 else:
@@ -56,19 +57,20 @@ def print_kifu(
     html = template.render(
         dimension=height,
         overlaps=overlaps,
-        rows=rows
+        rows=rows,
+        size=size,
     )
 
     size = render_html(html, kifu_filename)
     return ImageData(kifu_filename, size[0], size[1])
 
 
-def _convert_coordinate_to_index(coordinate) -> Tuple[int, int]:
+def _convert_coordinate_to_index(coordinate: str, size: int) -> Tuple[int, int]:
     column_label, row_label = coordinate[0], coordinate[1:]
     column = ord(column_label) - ord('A')
     if column_label >= 'I':
         column -= 1
-    row = 19 - int(row_label)
+    row = size - int(row_label)
     return column, row
 
 _template = '''
@@ -140,7 +142,7 @@ _template = '''
                     class="kifu"
                     height="100%"
                     preserveAspectRatio="xMidYMin meet"
-                    viewBox="0 0 2100 2100"
+                    viewBox="0 0 ${(size + 2) * 100} ${(size + 2) * 100}"
                     width="100%"
                 >
                     <defs>
@@ -176,330 +178,96 @@ _template = '''
                     <!-- Grid -->
                     <rect fill="rgb(148, 118, 38)" height="100%" stroke="black" stroke-width="3" width="100%" x="0" y="0" />
                     
-                    <rect fill="url(#grid-horizontal-lines)" height="1803" width="1803" x="148.5" y="148.5"/>
-                    <rect fill="url(#grid-vertical-lines)" height="1803" width="1803" x="148." y="148.5"/>
+                    <rect
+                        fill="url(#grid-horizontal-lines)"
+                        height="${(size + 2) * 100 - 297}"
+                        width="${(size + 2) * 100 - 297}"
+                        x="148.5"
+                        y="148.5"
+                    />
+                    <rect
+                        fill="url(#grid-vertical-lines)"
+                        height="${(size + 2) * 100 - 297}"
+                        width="${(size + 2) * 100 - 297}"
+                        x="148.5"
+                        y="148.5"
+                    />
             
                     <!-- Hoshi -->
+                    % if size % 2 == 1:
+                    <use x="${(size // 2 + 1) * 100 + 50}" xlink:href="#star" y="${(size // 2 + 1) * 100 + 50}"/>
+                    
+                    % if size >= 13:
+                    <use x="${(size // 2 + 1) * 100 + 50}" xlink:href="#star" y="450"/>
+                    <use x="450" xlink:href="#star" y="${(size // 2 + 1) * 100 + 50}"/>
+                    <use x="${(size - 3) * 100 + 50}" xlink:href="#star" y="${(size // 2 + 1) * 100 + 50}"/>
+                    <use x="${(size // 2 + 1) * 100 + 50}" xlink:href="#star" y="${(size - 3) * 100 + 50}"/>
+                    % endif
+                    
+                    % endif
+                    
+                    % if size >= 13:
                     <use x="450" xlink:href="#star" y="450"/>
-                    <use x="450" xlink:href="#star" y="1050"/>
-                    <use x="450" xlink:href="#star" y="1650"/>
+                    <use x="450" xlink:href="#star" y="${(size - 3) * 100 + 50}"/>
             
-                    <use x="1050" xlink:href="#star" y="450"/>
-                    <use x="1050" xlink:href="#star" y="1050"/>
-                    <use x="1050" xlink:href="#star" y="1650"/>
-            
-                    <use x="1650" xlink:href="#star" y="450"/>
-                    <use x="1650" xlink:href="#star" y="1050"/>
-                    <use x="1650" xlink:href="#star" y="1650"/>
+                    <use x="${(size - 3) * 100 + 50}" xlink:href="#star" y="450"/>
+                    <use x="${(size - 3) * 100 + 50}" xlink:href="#star" y="${(size - 3) * 100 + 50}"/>
+                    % endif
                     
                     <!-- Coordinates -->
-                    <svg height="100" width="100" x="100" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">A</text>
-                    </svg>
-                    <svg height="100" width="100" x="200" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">B</text>
-                    </svg>
-                    <svg height="100" width="100" x="300" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">C</text>
-                    </svg>
-                    <svg height="100" width="100" x="400" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">D</text>
-                    </svg>
-                    <svg height="100" width="100" x="500" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">E</text>
-                    </svg>
-                    <svg height="100" width="100" x="600" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">F</text>
-                    </svg>
-                    <svg height="100" width="100" x="700" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">G</text>
-                    </svg>
-                    <svg height="100" width="100" x="800" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">H</text>
-                    </svg>
-                    <svg height="100" width="100" x="900" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">J</text>
-                    </svg>
-                    <svg height="100" width="100" x="1000" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">K</text>
-                    </svg>
-                    <svg height="100" width="100" x="1100" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">L</text>
-                    </svg>
-                    <svg height="100" width="100" x="1200" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">M</text>
-                    </svg>
-                    <svg height="100" width="100" x="1300" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">N</text>
-                    </svg>
-                    <svg height="100" width="100" x="1400" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">O</text>
-                    </svg>
-                    <svg height="100" width="100" x="1500" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">P</text>
-                    </svg>
-                    <svg height="100" width="100" x="1600" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">Q</text>
-                    </svg>
-                    <svg height="100" width="100" x="1700" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">R</text>
-                    </svg>
-                    <svg height="100" width="100" x="1800" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">S</text>
-                    </svg>
-                    <svg height="100" width="100" x="1900" y="0">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">T</text>
-                    </svg>
-            
-                    <svg height="100" width="100" x="100" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">A</text>
-                    </svg>
-                    <svg height="100" width="100" x="200" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">B</text>
-                    </svg>
-                    <svg height="100" width="100" x="300" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">C</text>
-                    </svg>
-                    <svg height="100" width="100" x="400" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">D</text>
-                    </svg>
-                    <svg height="100" width="100" x="500" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">E</text>
-                    </svg>
-                    <svg height="100" width="100" x="600" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">F</text>
-                    </svg>
-                    <svg height="100" width="100" x="700" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">G</text>
-                    </svg>
-                    <svg height="100" width="100" x="800" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">H</text>
-                    </svg>
-                    <svg height="100" width="100" x="900" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">J</text>
-                    </svg>
-                    <svg height="100" width="100" x="1000" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">K</text>
-                    </svg>
-                    <svg height="100" width="100" x="1100" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">L</text>
-                    </svg>
-                    <svg height="100" width="100" x="1200" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">M</text>
-                    </svg>
-                    <svg height="100" width="100" x="1300" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">N</text>
-                    </svg>
-                    <svg height="100" width="100" x="1400" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">O</text>
-                    </svg>
-                    <svg height="100" width="100" x="1500" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">P</text>
-                    </svg>
-                    <svg height="100" width="100" x="1600" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">Q</text>
-                    </svg>
-                    <svg height="100" width="100" x="1700" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">R</text>
-                    </svg>
-                    <svg height="100" width="100" x="1800" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">S</text>
-                    </svg>
-                    <svg height="100" width="100" x="1900" y="2000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">T</text>
-                    </svg>
-            
-                    <svg height="100" width="100" x="0" y="100">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">19</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="200">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">18</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="300">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">17</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="400">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">16</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="500">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">15</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="600">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">14</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="700">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">13</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="800">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">12</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="900">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">11</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">10</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1100">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">9</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1200">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">8</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1300">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">7</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1400">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">6</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1500">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">5</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1600">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">4</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1700">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">3</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1800">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">2</text>
-                    </svg>
-                    <svg height="100" width="100" x="0" y="1900">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">1</text>
-                    </svg>
-            
-                    <svg height="100" width="100" x="2000" y="100">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">19</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="200">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">18</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="300">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">17</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="400">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">16</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="500">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">15</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="600">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">14</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="700">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">13</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="800">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">12</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="900">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">11</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1000">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">10</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1100">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">9</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1200">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">8</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1300">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">7</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1400">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">6</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1500">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">5</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1600">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">4</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1700">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">3</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1800">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">2</text>
-                    </svg>
-                    <svg height="100" width="100" x="2000" y="1900">
-                        <text dominant-baseline="middle" font-size="3em" style="color: rgba(0,0,0,0.7);" text-anchor="middle" x="50%"
-                              y="50%">1</text>
-                    </svg>
+                    % for x in range(0, size):
+                    <svg height="100" width="100" x="${(x + 1) * 100}" y="0">
+                        <text
+                            dominant-baseline="middle"
+                            font-size="3em"
+                            style="color: rgba(0,0,0,0.7);"
+                            text-anchor="middle"
+                            x="50%"
+                            y="50%"
+                        >
+                            ${chr(65 + x + (1 if x >= 8 else 0))}
+                        </text>
+                    </svg>
+                        
+                    <svg height="100" width="100" x="${(x + 1) * 100}" y="${(size + 1) * 100}">
+                        <text
+                            dominant-baseline="middle"
+                            font-size="3em"
+                            style="color: rgba(0,0,0,0.7);"
+                            text-anchor="middle"
+                            x="50%"
+                            y="50%"
+                        >
+                            ${chr(65 + x + (1 if x >= 8 else 0))}
+                        </text>
+                    </svg>
+                    
+                    <svg height="100" width="100" x="0" y="${(x + 1) * 100}">
+                        <text
+                            dominant-baseline="middle"
+                            font-size="3em"
+                            style="color: rgba(0,0,0,0.7);"
+                            text-anchor="middle"
+                            x="50%"
+                            y="50%"
+                        >
+                            ${size - x}
+                        </text>
+                    </svg>
+                    
+                    <svg height="100" width="100" x="${(size + 1) * 100}" y="${(x + 1) * 100}">
+                        <text
+                            dominant-baseline="middle"
+                            font-size="3em"
+                            style="color: rgba(0,0,0,0.7);"
+                            text-anchor="middle"
+                            x="50%"
+                            y="50%"
+                        >
+                            ${size - x}
+                        </text>
+                    </svg>
+                    % endfor
                     
                     <!-- Position Representation -->
                     % for y, row in enumerate(rows):

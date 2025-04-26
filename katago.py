@@ -16,7 +16,17 @@ class LineType(Enum):
 
 
 class KataGo:
-    def __init__(self, executable, configuration, model, analysis_threads=10, search_threads=1, output=False):
+    def __init__(
+        self,
+        executable,
+        configuration,
+        model,
+        analysis_threads=10,
+        search_threads=1,
+        max_playouts=16385,
+        max_visits=1048576,
+        output=False
+    ):
         self.output = output
         if output:
             print('  Launching KataGo...')
@@ -43,8 +53,12 @@ class KataGo:
                         print(f'  {name} thread has finished.')
                     break
 
-        command = f'{executable} analysis -config {configuration} -model {model} -analysis-threads {analysis_threads} ' \
-                  f'-override-config numSearchThreads={search_threads}'
+        command = f'{executable} analysis -config {configuration} -model {model} ' \
+                  f'-override-config numSearchThreads={search_threads} ' \
+                  f'-override-config numAnalysisThreads={analysis_threads} ' \
+                  f'-override-config maxPlayouts={max_playouts} ' \
+                  f'-override-config maxVisits={max_visits} '
+        print(f'  KATAGO COMMAND: {command}')
         self._process = subprocess.Popen(
             command,
             stderr=subprocess.PIPE,

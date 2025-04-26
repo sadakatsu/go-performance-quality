@@ -15,10 +15,22 @@ def load_performances_new(analysis_filename: str) -> dict:
         sys.exit(4)
     date, game_name, dataframe = loaded
 
+    black_moves = dataframe[dataframe['Player'] == 'B']
+    white_moves = dataframe[dataframe['Player'] == 'W']
+
     return {
-        'Game': dataframe['Delta'].to_numpy(),
-        'B': dataframe[dataframe['Player'] == 'B']['Delta'].to_numpy(),
-        'W': dataframe[dataframe['Player'] == 'W']['Delta'].to_numpy()
+        'Game': {
+            'actual': dataframe['Loss'].to_numpy(),
+            'expected': dataframe['Expected Loss'].to_numpy(),
+        },
+        'B': {
+            'actual': black_moves['Loss'].to_numpy(),
+            'expected': black_moves['Expected Loss'].to_numpy(),
+        },
+        'W': {
+            'actual': white_moves['Loss'].to_numpy(),
+            'expected': white_moves['Expected Loss'].to_numpy(),
+        },
     }
 
 
@@ -70,25 +82,25 @@ def get_mistakes(dataframe, player, use_rounded=True):
     if use_rounded:
         result = player_slice['Mistake'].to_numpy()
     else:
-        result = player_slice['Before'].to_numpy() - player_slice['After'].to_numpy()
+        result = player_slice['Prior Lead'].to_numpy() - player_slice['Posterior Lead'].to_numpy()
 
     return result
 
 
 def get_expected_result(analysis_filename: str) -> List[float]:
     _1, _2, dataframe = load(analysis_filename)
-    subset = zip(dataframe['Player'], dataframe['After'])
+    subset = zip(dataframe['Player'], dataframe['Posterior Lead'])
     return [np.round(x if p == 'B' else -x, 1) for p, x in subset]
 
 
 def get_worst_moves(analysis_filename: str) -> Tuple[List[int], np.array]:
     _1, _2, dataframe = load(analysis_filename)
 
-    black_mistakes = np.array([x if p == 'B' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Delta'])])
+    black_mistakes = np.array([x if p == 'B' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Loss'])])
     worst_black_mistake_indices = np.sort((-black_mistakes).argsort()[:10])
     worst_black_mistakes = np.array([black_mistakes[i] for i in worst_black_mistake_indices])
 
-    white_mistakes = np.array([-x if p == 'W' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Delta'])])
+    white_mistakes = np.array([-x if p == 'W' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Loss'])])
     worst_white_mistake_indices = np.sort(white_mistakes.argsort()[:10])
     worst_white_mistakes = np.array([white_mistakes[i] for i in worst_white_mistake_indices])
 

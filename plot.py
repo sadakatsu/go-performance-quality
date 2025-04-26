@@ -37,8 +37,8 @@ def plot_distributions(
 
     # performances = load_performances(analysis_filename, use_rounded=False)
     performances = load_performances_new(analysis_filename)
-    minimum = _get_safe_minimum(performances)
-    maximum = _get_safe_maximum(performances)
+    minimum = _get_safe_minimum(performances) - 5
+    maximum = _get_safe_maximum(performances) + 5
 
     black_performance = _get_performance(performances, 'B')
     white_performance = _get_performance(performances, 'W')
@@ -164,12 +164,15 @@ def _set_matplotlib_fonts(analysis_filename: str):
     if missing:
         candidates = []
         for f in matplotlib.font_manager.fontManager.ttflist:
-            name = f.name
-            ttf = TTFont(f.fname, fontNumber=0)
-            covered = {x for x in missing if _char_in_font(x, ttf)}
-            if covered:
-                candidate = name, covered
-                candidates.append(candidate)
+            try:
+                name = f.name
+                ttf = TTFont(f.fname, fontNumber=0)
+                covered = {x for x in missing if _char_in_font(x, ttf)}
+                if covered:
+                    candidate = name, covered
+                    candidates.append(candidate)
+            except FileNotFoundError:
+                print('WARN: could not open', f.fname)
 
         ordered = sorted(candidates, key=lambda x: len(x[1]), reverse=True)
         name, covered = ordered[0]
@@ -189,13 +192,13 @@ def _char_in_font(character, font):
     return False
 
 
-def _get_performance(performances, color: str):
-    return performances[color]
+def _get_performance(performances, color: str, kind: str = 'actual'):
+    return performances[color][kind]
 
 
 def _get_safe_minimum(performances):
-    return np.floor(np.min(performances['Game']))
+    return np.floor(np.min(performances['Game']['actual']))
 
 
 def _get_safe_maximum(performances):
-    return np.floor(np.max(performances['Game']))
+    return np.floor(np.max(performances['Game']['actual']))
