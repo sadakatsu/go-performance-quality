@@ -10,13 +10,16 @@ threads: 8
 buffer: 64
 
 katago:
-  executable: "C:/Go/KataGo/katago-v1.15.3-cuda12.1-cudnn8.9.7-windows-x64/katago.exe"
-  configuration: "C:/Go/KataGo/katago-v1.15.3-cuda12.1-cudnn8.9.7-windows-x64/oracle.cfg"
-  model: "C:/Go/KataGo/networks/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
-  analysis_threads: 128
-  search_threads: 1
-  max_playouts: 16385  # how many times to expand the root node when analyzing a position
-  max_visits: 1048576  # how many times a node may be visited over the course of all positions analyzed
+  analysisThreads: 128 # how many different positions KataGo can analyze at once (higher is better)
+  config: "C:/Go/KataGo/katago-v1.16.0-cuda12.5-cudnn8.9.7-windows-x64/oracle.cfg"
+  executable: "C:/Go/KataGo/katago-v1.16.0-cuda12.5-cudnn8.9.7-windows-x64/katago.exe"
+  fastQuit: true
+  humanModel: "C:/Go/KataGo/networks/b18c384nbt-humanv0.bin.gz"
+  playouts: 16384  # how many times to expand the root node when analyzing a position
+  profile: proyear_1995
+  searchModel: "C:/Go/KataGo/networks/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
+  searchThreads: 1 # how many threads KataGo uses to search a single position (lower is better, 1 is best)
+  visits: 1048576  # how many times a node may be visited over the course of all positions analyzed
 
 accuracy:
   lead_drop: 0.5

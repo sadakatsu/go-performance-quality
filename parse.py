@@ -6,6 +6,10 @@ import os
 import re
 import sys
 import uuid
+from typing import Tuple, Union, Optional, List
+
+from katago import Player, Coordinate, Pass
+from katago.query import Query, MoveDTO, Ruleset
 
 debug = False
 sys.setrecursionlimit(10_000)
@@ -293,7 +297,9 @@ def construct_node(properties):
                 'RO',
                 'RU',
                 'SZ',
+                'TC',  # gorram Fox
                 'TM',
+                'TT',  # gorram Fox
                 'W',
                 'WR',
                 'WT'
@@ -405,105 +411,107 @@ def parse_sgf_contents(text):
     return c
 
 
-def transform_node(node):
+def transform_node(node) -> Optional[MoveDTO]:
+    player: Player
+    value: str
     if 'B' in node:
-        color = 'B'
-        move = node['B']
+        player = Player.B
+        value = node['B']
     elif 'W' in node:
-        color = 'W'
-        move = node['W']
+        player = Player.W
+        value = node['W']
     else:
         return None
-    if move == ():
-        move = 'pass'
-    return [color, move]
+
+    move: Union[Coordinate, Pass] = (
+        Pass.PASS
+        if not value or value.lower() == 'pass'
+        else Coordinate(value.upper())
+    )
+    return MoveDTO(player=player, move=move)
 
 
-def transform_sgf_to_command(main_variation, convert=True):
+def transform_sgf_to_query(main_variation, convert=True) -> Tuple[Query, str, int]:
     setup_node = main_variation[0]
     print(setup_node)
     # Developer's Note: (J. Craig, 2022-02-24)
     # I have a lot of crappy SGFs to process.  Rather than fixing them all, I am making my code more tolerant for now.
-    # if 'GM' not in setup_node or setup_node['GM'] != 1:
     if 'GM' in setup_node and setup_node['GM'] != 1:
         raise Exception('Wrong game')
-    # elif 'FF' not in setup_node or setup_node['FF'] != 4:
     elif 'FF' in setup_node and setup_node['FF'] != 4:
-        raise Exception('Wrong format')
-    # elif 'SZ' not in setup_node or setup_node['SZ'] != 19:
-    # elif 'SZ' in setup_node and setup_node['SZ'] != 19:
-    #    raise Exception('Wrong size')
-    elif 'HA' in setup_node and (setup_node['HA'] < 0 or setup_node['HA'] > 9):
-        raise Exception('Wrong handicap')
-    elif 'RU' in setup_node and setup_node['RU'].lower() not in (
-        'aga',
-        'aga-button',
-        'bga',
-        'chinese',
-        'chinese-kgs',
-        'chinese-ogs',
-        'japanese',
-        'korean',
-        'new-zealand',
-        'stone-scoring',
-        'tromp-taylor'
-    ):
-        raise Exception('Wrong rule set')
+        # Hack because of freaking GoGoD.
+        print(f'WARNING: FF[{setup_node["FF"]}] is not 4')
+        # raise Exception('Wrong format')
 
-    # PandaNet games can generate empty nodes
-    moves = [y for y in [transform_node(x) for x in main_variation[1:]] if y]
-
-    output = {
-        "id": str(uuid.uuid4()),
-        "moves": moves,
-        "includePolicy": True,
-        "initialStones": [],
-        "initialPlayer": 'B' if 'B' in main_variation[1] else 'W',
-        "rules": 'japanese' if 'RU' not in setup_node else setup_node['RU'].lower(),
-        "komi": 6.5 if 'KM' not in setup_node else setup_node['KM'],
-        "boardXSize": 19,
-        "boardYSize": 19,
-        "analyzeTurns": [x for x in range(len(moves) + 1)]
-    }
-
-    if 'AB' in setup_node:
-        placements = setup_node['AB']
-        if not isinstance(placements, list):
-            placements = [placements]
-        output['initialStones'] = [['B', x] for x in placements]
-
+    # Reject games that have AW (Add White) nodes because we cannot handle those yet.
     if 'AW' in setup_node:
-        placements = setup_node['AW']
-        if not isinstance(placements, list):
-            placements = [placements]
-        if 'initialStones' not in output:
-            output['initialStones'] = []
-        output['initialStones'] += [['W', x] for x in placements]
+        raise Exception('We do not support games with initial White stones yet.')
 
+    # Ensure we have a legal handicap value and initial stone placement.
+    initial_stones: Optional[List[MoveDTO]] = None
     if 'HA' in setup_node:
         handicap = setup_node['HA']
-        if 'AB' not in setup_node:
-            stones = output["initialStones"]
-            if handicap >= 2:
-                stones.extend([['B', 'Q16'], ['B', 'D4']])
-            if handicap >= 3:
-                stones.append(['B', 'Q4'])
-            if handicap >= 4:
-                stones.append(['B', 'D16'])
-            if handicap in (5, 7, 9):
-                stones.append(['B', 'K10'])
-            if handicap in (6, 8, 9):
-                stones.extend([['B', 'D10'], ['B', 'Q10']])
-            if handicap >= 8:
-                stones.extend([['B', 'K16'], ['B', 'K4']])
+        if handicap < 0 or handicap > 9:
+            raise Exception('Wrong handicap')
+        elif handicap > 1:
+            if 'AB' in setup_node:
+                ab = setup_node['AB']
+                if len(ab) != handicap:
+                    raise Exception(f'HA[{handicap}], len(AB[]) is {len(ab)}')
+                initial_stones = [MoveDTO(player=Player.B, move=Coordinate(x.upper())) for x in ab]
+            else:
+                # Technically, we should not do this.  This is yet another attempt to handle crappy SGF files.
+                placement_coordinates: List[str] = ['Q16', 'D4']
+                if handicap >= 3:
+                    placement_coordinates.append('Q4')
+                if handicap >= 4:
+                    placement_coordinates.append('D16')
+                if handicap in (5, 7, 9):
+                    placement_coordinates.append('K10')
+                if handicap in (6, 8, 9):
+                    placement_coordinates.extend(['D10', 'Q10'])
+                if handicap >= 8:
+                    placement_coordinates.extend(['K16', 'K4'])
 
-    if convert:
-        returned_command = json.dumps(output, separators=(',', ':')) + os.linesep
-    else:
-        returned_command = output
+                initial_stones = [MoveDTO(player=Player.B, move=Coordinate(x)) for x in placement_coordinates]
+
+    # Determine the ruleset.  Default to Japanese.
+    rules: Ruleset = Ruleset.JAPANESE
+    if 'RU' in setup_node:
+        ruleset_name = setup_node['RU'].lower()
+        if ruleset_name not in Ruleset:
+            raise Exception('Wrong rule set')
+        rules = Ruleset(ruleset_name)
+
+    # Ensure we know komi.  If the setup node did not provide it, get it from the ruleset.
+    komi: float = setup_node['KM'] if 'KM' in setup_node else rules.specification.komi
+
+    # We need to generate the list of moves.  Two servers have annoying quirks we have to correct.
+    # - PandaNet can generate empty nodes in the SGF file.
+    # - OGS treats the first move of a one-level difference between two players as being a freely placed stone instead
+    #   of a move.
+    moves = [y for y in [transform_node(x) for x in main_variation[1:]] if y]
+    if 'AB' in setup_node and len(setup_node['AB']) == 1:
+        moves.insert(0, transform_node(setup_node['AB'][0]))
+    initial_player = moves[0].player
+    analyze_turns = [x for x in range(len(moves) + 1)]
+
+    size = setup_node['SZ']
+
+    query = Query(
+        analyze_turns=analyze_turns,
+        board_x_size=size,
+        board_y_size=size,
+        include_policy=True,
+        initial_player=initial_player,
+        initial_stones=initial_stones,
+        komi=komi,
+        moves=moves,
+        rules=rules,
+    )
 
     return (
-        returned_command,
-        output['initialPlayer'],
-        len(output['analyzeTurns'])
+        query,
+        str(initial_player.value),
+        len(analyze_turns)
     )

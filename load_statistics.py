@@ -96,11 +96,11 @@ def get_expected_result(analysis_filename: str) -> List[float]:
 def get_worst_moves(analysis_filename: str) -> Tuple[List[int], np.array]:
     _1, _2, dataframe = load(analysis_filename)
 
-    black_mistakes = np.array([x if p == 'B' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Loss'])])
+    black_mistakes = np.array([x if p == 'B' else np.nan for p, x in zip(dataframe['Player'], dataframe['Loss'])])
     worst_black_mistake_indices = np.sort((-black_mistakes).argsort()[:10])
     worst_black_mistakes = np.array([black_mistakes[i] for i in worst_black_mistake_indices])
 
-    white_mistakes = np.array([-x if p == 'W' else np.NaN for p, x in zip(dataframe['Player'], dataframe['Loss'])])
+    white_mistakes = np.array([-x if p == 'W' else np.nan for p, x in zip(dataframe['Player'], dataframe['Loss'])])
     worst_white_mistake_indices = np.sort(white_mistakes.argsort()[:10])
     worst_white_mistakes = np.array([white_mistakes[i] for i in worst_white_mistake_indices])
 
