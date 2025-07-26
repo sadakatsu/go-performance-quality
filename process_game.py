@@ -85,6 +85,12 @@ def run(sgf_filename: str):
     json_filename = sgf_filename[:-4] + '.json'
     json_filename = json_filename.replace('sgf', 'json')
     json_filename = re.sub('(?:ranked|free)[\\\\/]', '', json_filename)
+
+    # HACK: Skip this file if it already exists.  The best system would check a version field.
+    if os.path.exists(json_filename):
+        print(f'We have already processed {json_filename}.')
+        return
+
     print(json_filename)
     os.makedirs(
         json_filename[:json_filename.rindex('\\')],

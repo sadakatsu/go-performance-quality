@@ -293,7 +293,20 @@ def load_sgf(sgf):
     else:
         winner = None
 
-    return main_variation, black_name, white_name, size, winner
+    # Developer's Note: (J. Craig, 2025-07-26)
+    # Some servers (I am looking at you, Fox) skip passes as nodes.  This messes with my processing.  I have decided the
+    # easiest way to handle this is to insert pass nodes into the SGF here before sending it out into the rest of the
+    # program.
+    corrected = [root]
+    expected = None
+    for node in main_variation[1:]:
+        if expected is not None and expected not in node:
+            corrected.append({expected: Pass.PASS})
+
+        corrected.append(node)
+        expected = 'W' if 'B' in node else 'B'
+
+    return corrected, black_name, white_name, size, winner
 
 
 required_headers = {
